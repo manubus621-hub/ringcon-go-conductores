@@ -1,4 +1,396 @@
-<!-- JS LOGIC CORREGIDO -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rincón Go - Conductores</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Leaflet JS & CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#fff1f2',
+                            100: '#ffe4e6',
+                            500: '#e11d48',
+                            600: '#e11d48',
+                            700: '#be123c',
+                            800: '#9f1239',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .map-container { height: calc(100vh - 64px - 72px); }
+        @media (min-width: 768px) {
+            .map-container { height: calc(100vh - 64px); }
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans antialiased overflow-x-hidden selection:bg-rose-500 selection:text-white">
+
+    <!-- PANTALLA DE LOGIN / REGISTRO -->
+    <div id="authScreen" class="fixed inset-0 z-[2000] bg-gray-950 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative overflow-hidden">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-rose-600/20 border border-rose-500/30 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-rose-600/10">
+                    <i data-lucide="car" class="w-9 h-9 text-rose-500"></i>
+                </div>
+                <h1 class="text-3xl font-black tracking-tight text-white">Rincón <span class="text-rose-500">Go</span></h1>
+                <p class="text-xs text-rose-400 font-semibold tracking-wider uppercase mt-0.5">App Conductores - Rincón de los Sauces</p>
+            </div>
+
+            <!-- Botón Google -->
+            <button type="button" onclick="loginWithGoogle()" class="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 transition shadow-lg mb-5 cursor-pointer">
+                <svg class="w-5 h-5" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                Iniciar sesión con Google
+            </button>
+
+            <div class="relative flex py-2 items-center mb-5">
+                <div class="flex-grow border-t border-gray-800"></div>
+                <span class="flex-shrink mx-4 text-xs text-gray-500 uppercase font-medium">o con correo</span>
+                <div class="flex-grow border-t border-gray-800"></div>
+            </div>
+
+            <!-- Formulario Email -->
+            <form onsubmit="loginWithEmail(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Correo Electrónico</label>
+                    <input type="email" id="loginEmail" required placeholder="conductor@rincongo.com" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Contraseña</label>
+                    <input type="password" id="loginPass" required placeholder="••••••••" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500">
+                </div>
+                <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3.5 px-4 rounded-xl transition shadow-lg shadow-rose-600/30 cursor-pointer">
+                    Ingresar a Rincón Go
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- APP CONTAINER -->
+    <div id="appContainer" class="hidden min-h-screen flex flex-col pb-20 md:pb-0">
+        <!-- HEADER TOP BAR -->
+        <header class="bg-gray-900 border-b border-gray-800 h-16 px-4 flex items-center justify-between sticky top-0 z-50">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-rose-600/20">
+                    <i data-lucide="car" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">Rincón <span class="text-rose-500">Go</span></h1>
+                    <p class="text-[10px] text-gray-400 font-medium">Conductores - Rincón de los Sauces</p>
+                </div>
+            </div>
+
+            <!-- Estado Online / Offline -->
+            <div class="flex items-center gap-3">
+                <button onclick="triggerIncomingTrip()" class="hidden md:flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-xs px-3 py-2 rounded-xl transition text-rose-400 cursor-pointer">
+                    <i data-lucide="zap" class="w-4 h-4"></i> Simular Viaje
+                </button>
+                <button id="statusToggleBtn" onclick="toggleOnlineStatus()" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition bg-gray-800 text-gray-400 border-gray-700 cursor-pointer">
+                    <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-gray-500"></span>
+                    <span id="statusText">Fuera de línea</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- MAIN LAYOUT -->
+        <div class="flex-1 flex flex-col md:flex-row relative">
+            
+            <!-- NAVEGACIÓN LATERAL Y BOTTOM -->
+            <nav class="fixed bottom-0 left-0 right-0 md:relative md:w-64 bg-gray-900 border-t md:border-t-0 md:border-r border-gray-800 z-40 flex md:flex-col justify-around md:justify-start p-2 md:p-4 gap-1 md:gap-2">
+                <button onclick="switchTab('map')" id="nav-map" class="nav-btn active flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-rose-500 bg-rose-500/10 cursor-pointer">
+                    <i data-lucide="map-pin" class="w-5 h-5"></i> <span>Mapa y Viajes</span>
+                </button>
+                <button onclick="switchTab('earnings')" id="nav-earnings" class="nav-btn flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-gray-400 hover:bg-gray-800 cursor-pointer">
+                    <i data-lucide="wallet" class="w-5 h-5"></i> <span>Ganancias & Cobros</span>
+                </button>
+                <button onclick="switchTab('vehicle')" id="nav-vehicle" class="nav-btn flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-gray-400 hover:bg-gray-800 cursor-pointer">
+                    <i data-lucide="file-text" class="w-5 h-5"></i> <span>Vehículo & CAT</span>
+                </button>
+                <button onclick="switchTab('profile')" id="nav-profile" class="nav-btn flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-gray-400 hover:bg-gray-800 cursor-pointer">
+                    <i data-lucide="user" class="w-5 h-5"></i> <span>Mi Cuenta</span>
+                </button>
+
+                <div class="hidden md:block mt-auto pt-4 border-t border-gray-800">
+                    <button onclick="logout()" class="w-full flex items-center gap-3 p-3 text-red-400 hover:bg-red-500/10 rounded-xl text-sm transition cursor-pointer">
+                        <i data-lucide="log-out" class="w-5 h-5"></i> Cerrar Sesión
+                    </button>
+                </div>
+            </nav>
+
+            <!-- CONTENIDO PRINCIPAL -->
+            <main class="flex-1 relative bg-gray-950 overflow-y-auto">
+                
+                <!-- VISTA MAPA -->
+                <section id="tab-map" class="tab-content block h-full relative">
+                    <div id="map" class="w-full map-container z-10"></div>
+
+                    <!-- Panel Flotante Inferior Mapa -->
+                    <div class="absolute bottom-4 left-4 right-4 z-20 max-w-md mx-auto">
+                        <div class="bg-gray-900/90 backdrop-blur-md border border-gray-800 rounded-2xl p-4 shadow-xl">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="navigation" class="w-4 h-4 text-rose-500"></i>
+                                    <span class="text-xs font-semibold text-gray-300">Zona Exclusiva</span>
+                                </div>
+                                <span class="text-[11px] bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full font-medium">Rincón de los Sauces</span>
+                            </div>
+                            <p class="text-xs text-gray-400">El mapa está delimitado estrictamente para operar únicamente en Rincón de los Sauces.</p>
+                            <button onclick="triggerIncomingTrip()" class="mt-3 w-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer">
+                                <i data-lucide="play" class="w-4 h-4"></i> Simular Solicitud de Viaje
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- VISTA GANANCIAS Y COBROS -->
+                <section id="tab-earnings" class="tab-content hidden p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-xl font-bold">Ganancias & Retiros</h2>
+                            <p class="text-xs text-gray-400">Resumen financiero y transferencias directas</p>
+                        </div>
+                        <button onclick="openWithdrawModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition cursor-pointer">
+                            <i data-lucide="arrow-up-right" class="w-4 h-4"></i> Cobrar Ganancias
+                        </button>
+                    </div>
+
+                    <!-- Tarjetas de Saldo -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
+                            <p class="text-xs text-gray-400">Saldo Disponible</p>
+                            <p id="balanceAmount" class="text-2xl font-black text-emerald-400 mt-1">$ 48.500</p>
+                            <span class="text-[10px] text-gray-500">Listo para retirar</span>
+                        </div>
+                        <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
+                            <p class="text-xs text-gray-400">Ganancias de Hoy</p>
+                            <p class="text-2xl font-black text-white mt-1">$ 18.200</p>
+                            <span class="text-[10px] text-emerald-400">6 viajes realizados</span>
+                        </div>
+                        <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
+                            <p class="text-xs text-gray-400">Esta Semana</p>
+                            <p class="text-2xl font-black text-white mt-1">$ 124.800</p>
+                            <span class="text-[10px] text-gray-500">38 viajes en total</span>
+                        </div>
+                    </div>
+
+                    <!-- Gráfico de Ganancias -->
+                    <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
+                        <h3 class="text-xs font-bold text-gray-300 mb-4">Ganancias de los últimos 7 días</h3>
+                        <div class="relative w-full h-48">
+                            <canvas id="earningsChart"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- VISTA VEHÍCULO Y DOCUMENTACIÓN / CAT -->
+                <section id="tab-vehicle" class="tab-content hidden p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+                    <div>
+                        <h2 class="text-xl font-bold">Vehículo & Documentación (CAT)</h2>
+                        <p class="text-xs text-gray-400">Configurá los datos del auto y tu cédula de autorización</p>
+                    </div>
+
+                    <form onsubmit="saveVehicleData(event)" class="space-y-6">
+                        <!-- Datos del Vehículo -->
+                        <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl space-y-4">
+                            <h3 class="text-sm font-bold text-rose-400 flex items-center gap-2">
+                                <i data-lucide="car" class="w-4 h-4"></i> Información del Auto
+                            </h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-gray-400 mb-1">Marca y Modelo</label>
+                                    <input type="text" id="vehBrand" value="Toyota Etios" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-400 mb-1">Patente / Dominio</label>
+                                    <input type="text" id="vehPlate" value="AE 123 XY" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-400 mb-1">Año</label>
+                                    <input type="text" id="vehYear" value="2021" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-400 mb-1">Color</label>
+                                    <input type="text" id="vehColor" value="Gris Plata" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Cédula CAT / Documentación -->
+                        <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl space-y-4">
+                            <h3 class="text-sm font-bold text-rose-400 flex items-center gap-2">
+                                <i data-lucide="shield-check" class="w-4 h-4"></i> Cédula de Vehículo / CAT & Licencia
+                            </h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-gray-400 mb-1">Número de Cédula Verde / Azul (CAT)</label>
+                                    <input type="text" id="catNumber" value="CAT-9920148-RN" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-400 mb-1">Vencimiento CAT</label>
+                                    <input type="date" id="catExp" value="2027-08-15" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-rose-600/20 cursor-pointer">
+                            Guardar Cambios del Vehículo
+                        </button>
+                    </form>
+                </section>
+
+                <!-- VISTA PERFIL Y MI CUENTA -->
+                <section id="tab-profile" class="tab-content hidden p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+                    <div>
+                        <h2 class="text-xl font-bold">Mi Cuenta</h2>
+                        <p class="text-xs text-gray-400">Gestioná tus datos personales y credenciales</p>
+                    </div>
+
+                    <form onsubmit="saveProfileData(event)" class="bg-gray-900 border border-gray-800 p-5 rounded-2xl space-y-4">
+                        <div class="flex items-center gap-4 border-b border-gray-800 pb-4">
+                            <div class="w-16 h-16 bg-rose-600/20 border border-rose-500 rounded-full flex items-center justify-center text-rose-400 font-black text-xl">
+                                CG
+                            </div>
+                            <div>
+                                <h3 id="profileDisplayName" class="text-base font-bold">Carlos González</h3>
+                                <p id="profileDisplayEmail" class="text-xs text-gray-400">conductor@rincongo.com</p>
+                                <span class="inline-block mt-1 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-semibold">Conductor Verificado</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Nombre Completo</label>
+                                <input type="text" id="profName" value="Carlos González" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Teléfono</label>
+                                <input type="text" id="profPhone" value="+54 299 456-7890" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label class="block text-xs text-gray-400 mb-1">Correo Electrónico</label>
+                                <input type="email" id="profEmail" value="conductor@rincongo.com" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
+                            </div>
+                        </div>
+
+                        <div class="pt-2">
+                            <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-rose-600/20 cursor-pointer">
+                                Actualizar Datos Personales
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="md:hidden pt-4">
+                        <button onclick="logout()" class="w-full bg-red-600/10 border border-red-500/20 text-red-400 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer">
+                            <i data-lucide="log-out" class="w-4 h-4"></i> Cerrar Sesión
+                        </button>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- MODAL COBRAR GANANCIAS -->
+    <div id="withdrawModal" class="fixed inset-0 z-[3000] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold flex items-center gap-2 text-emerald-400">
+                    <i data-lucide="arrow-up-right" class="w-5 h-5"></i> Retirar Ganancias
+                </h3>
+                <button onclick="closeWithdrawModal()" class="text-gray-400 hover:text-white cursor-pointer"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            
+            <p class="text-xs text-gray-400">Ingresá tu CBU, CVU o Alias para recibir la transferencia de tus viajes.</p>
+
+            <form onsubmit="submitWithdraw(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Monto a Retirar ($)</label>
+                    <input type="number" id="withdrawAmount" max="48500" value="48500" required class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+                    <p class="text-[10px] text-gray-500 mt-1">Saldo disponible: $48.500</p>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">CBU / CVU o Alias</label>
+                    <input type="text" required placeholder="ej: rincon.go.mp" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Titular de la cuenta</label>
+                    <input type="text" required placeholder="Carlos González" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-600/20 cursor-pointer">
+                    Solicitar Transferencia
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL SOLICITUD DE VIAJE ENTRANTE -->
+    <div id="tripModal" class="fixed inset-0 z-[3000] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-rose-500/50 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 relative overflow-hidden">
+            <div class="flex items-center justify-between">
+                <span class="bg-rose-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase">Nuevo Viaje Disponible</span>
+                <span id="tripTimer" class="text-rose-400 font-mono font-bold text-sm">15s</span>
+            </div>
+
+            <div>
+                <p class="text-2xl font-black text-white">$ 3.400</p>
+                <p class="text-xs text-gray-400">Efectivo / Transferencia directos</p>
+            </div>
+
+            <div class="space-y-2 text-xs border-t border-b border-gray-800 py-3">
+                <div class="flex items-start gap-2">
+                    <i data-lucide="map-pin" class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5"></i>
+                    <div>
+                        <p class="text-gray-400 text-[10px]">Origen</p>
+                        <p class="font-semibold text-gray-200">Plaza San Martín, Rincón de los Sauces</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-2">
+                    <i data-lucide="navigation" class="w-4 h-4 text-rose-400 shrink-0 mt-0.5"></i>
+                    <div>
+                        <p class="text-gray-400 text-[10px]">Destino</p>
+                        <p class="font-semibold text-gray-200">Yacimiento Puesto Hernández</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 pt-1">
+                <button type="button" onclick="rejectTrip()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3 rounded-xl text-xs transition cursor-pointer">
+                    Rechazar
+                </button>
+                <button type="button" onclick="acceptTrip()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl text-xs transition shadow-lg shadow-rose-600/30 cursor-pointer">
+                    Aceptar Viaje
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS LOGIC -->
     <script>
         // INIT LUCIDE ICONS
         lucide.createIcons();
@@ -8,23 +400,23 @@
         let map, chart;
         let tripCountdown;
 
-        // AUTH FUNCTIONS (Corregidas para entrar al hacer clic)
+        // AUTH FUNCTIONS
         function loginWithGoogle() {
-            document.getElementById('authScreen').style.display = 'none';
+            document.getElementById('authScreen').classList.add('hidden');
             document.getElementById('appContainer').classList.remove('hidden');
             initApp();
         }
 
         function loginWithEmail(e) {
-            if(e) e.preventDefault();
-            document.getElementById('authScreen').style.display = 'none';
+            e.preventDefault();
+            document.getElementById('authScreen').classList.add('hidden');
             document.getElementById('appContainer').classList.remove('hidden');
             initApp();
         }
 
         function logout() {
             document.getElementById('appContainer').classList.add('hidden');
-            document.getElementById('authScreen').style.display = 'flex';
+            document.getElementById('authScreen').classList.remove('hidden');
         }
 
         // INICIALIZACIÓN APP
@@ -37,13 +429,11 @@
         function initMap() {
             if (map) return;
 
-            // Coordenadas centro Rincón de los Sauces
             const rinconCenter = [-37.387, -68.927];
 
-            // Delimitación estricta (Bounds)
             const bounds = L.latLngBounds(
-                [-37.420, -68.970], // Sudoeste
-                [-37.350, -68.880]  // Noreste
+                [-37.420, -68.970], 
+                [-37.350, -68.880]  
             );
 
             map = L.map('map', {
@@ -52,24 +442,22 @@
                 minZoom: 13,
                 maxZoom: 17,
                 maxBounds: bounds,
-                maxBoundsViscosity: 1.0 // Impide arrastrar fuera del límite
+                maxBoundsViscosity: 1.0
             });
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap'
             }).addTo(map);
 
-            // Marcador Conductor
             const driverIcon = L.divIcon({
                 className: 'custom-div-icon',
-                html: `<div class="w-8 h-8 bg-rose-600 border-2 border-white rounded-full flex items-center justify-center text-white shadow-lg"><i data-lucide="car" class="w-4 h-4"></i></div>`,
+                html: `<div class="w-8 h-8 bg-rose-600 border-2 border-white rounded-full flex items-center justify-center text-white shadow-lg"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div>`,
                 iconSize: [32, 32],
                 iconAnchor: [16, 16]
             });
 
             L.marker(rinconCenter, { icon: driverIcon }).addTo(map).bindPopup('<b>Tu ubicación</b><br>Rincón de los Sauces').openPopup();
 
-            // Puntos de Interés Locales
             const spots = [
                 { name: "Plaza San Martín", lat: -37.388, lng: -68.928 },
                 { name: "Yacimiento Puesto Hernández", lat: -37.365, lng: -68.905 },
@@ -113,11 +501,11 @@
             const text = document.getElementById('statusText');
 
             if (isOnline) {
-                btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
+                btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition bg-emerald-500/10 text-emerald-400 border-emerald-500/30 cursor-pointer";
                 dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse";
                 text.innerText = "En línea";
             } else {
-                btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition bg-gray-800 text-gray-400 border-gray-700";
+                btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition bg-gray-800 text-gray-400 border-gray-700 cursor-pointer";
                 dot.className = "w-2.5 h-2.5 rounded-full bg-gray-500";
                 text.innerText = "Fuera de línea";
             }
@@ -210,3 +598,5 @@
             });
         }
     </script>
+</body>
+</html>
