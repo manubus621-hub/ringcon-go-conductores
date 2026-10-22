@@ -3,28 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rincón Go - Conductores</title>
+    <title>Rincón Go - Conductores & Repartidores Pro</title>
     
-    <!-- Tailwind CSS -->
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Leaflet JS & CSS -->
+    <!-- Leaflet JS & CSS (Mapas) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
-    <!-- Chart.js -->
+    <!-- Chart.js (Estadísticas y Gráficos) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <!-- FIREBASE SDK Y CONFIGURACIÓN -->
+    <!-- FIREBASE SDK Y CONFIGURACIÓN (Con Redirección anti-bloqueo) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { 
+            getAuth, 
+            signInWithRedirect, 
+            getRedirectResult, 
+            GoogleAuthProvider, 
+            signInWithEmailAndPassword, 
+            signOut, 
+            onAuthStateChanged,
+            sendPasswordResetEmail
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // CONFIGURACIÓN DE TU PROYECTO FIREBASE
         const firebaseConfig = {
             apiKey: "AIzaSyOKrQcRn5zbW9VDiGBsgdAh6UlboGAP4Ps",
             authDomain: "ringcon-go.firebaseapp.com",
@@ -41,23 +49,32 @@
         window.auth = auth;
         window.db = db;
 
-        // INICIAR SESIÓN CON GOOGLE REAL
+        // LOGIN CON GOOGLE
         window.loginWithGoogle = function() {
             const provider = new GoogleAuthProvider();
-            signInWithPopup(auth, provider).catch((error) => {
-                console.error("Error en login con Google:", error);
-                alert("No se pudo iniciar sesión con Google. Intenta nuevamente.");
-            });
+            signInWithRedirect(auth, provider);
         };
 
-        // INICIAR SESIÓN CON CORREO Y CONTRASEÑA
+        // LOGIN CON EMAIL
         window.loginWithEmail = function(e) {
             e.preventDefault();
             const email = document.getElementById('loginEmail').value;
             const pass = document.getElementById('loginPass').value;
             signInWithEmailAndPassword(auth, email, pass).catch((error) => {
-                alert("Error al iniciar sesión: " + error.message);
+                alert("Error de autenticación: " + error.message);
             });
+        };
+
+        // RECUPERAR CONTRASEÑA
+        window.resetPassword = function() {
+            const email = prompt("Ingresá tu correo electrónico para restablecer la contraseña:");
+            if (email) {
+                sendPasswordResetEmail(auth, email).then(() => {
+                    alert("Se envió un correo para cambiar tu contraseña.");
+                }).catch((err) => {
+                    alert("Error: " + err.message);
+                });
+            }
         };
 
         // CERRAR SESIÓN
@@ -65,8 +82,11 @@
             signOut(auth);
         };
 
-        // ESCUCHAR ESTADO DE SESIÓN Y CARGAR DATOS REALES DE GOOGLE
         let isInitialized = false;
+
+        getRedirectResult(auth).catch((error) => {
+            console.error("Error en el resultado de la redirección:", error);
+        });
 
         onAuthStateChanged(auth, (user) => {
             const authScreen = document.getElementById('authScreen');
@@ -78,9 +98,8 @@
                 authScreen.style.display = 'none';
                 appContainer.classList.remove('hidden');
 
-                // Tomar datos reales del usuario autenticado en Google
-                const displayName = user.displayName || "Conductor Rincón Go";
-                const displayEmail = user.email || "conductor@rincongo.com";
+                const displayName = user.displayName || "Repartidor Rincón Go";
+                const displayEmail = user.email || "repartidor@rincongo.com";
 
                 document.getElementById('profileDisplayName').innerText = displayName;
                 document.getElementById('profileDisplayEmail').innerText = displayEmail;
@@ -88,7 +107,6 @@
                 document.getElementById('profEmail').value = displayEmail;
                 document.getElementById('withdrawHolder').value = displayName;
 
-                // Inicializar saldo en cero si no existía
                 if (localStorage.getItem('rincon_go_balance') === null) {
                     localStorage.setItem('rincon_go_balance', '0');
                 }
@@ -126,29 +144,37 @@
         }
     </script>
     <style>
-        .map-container { height: calc(100vh - 64px - 72px); }
+        .map-container { height: calc(100vh - 64px - 72px - 53px); }
         @media (min-width: 768px) {
-            .map-container { height: calc(100vh - 64px); }
+            .map-container { height: calc(100vh - 64px - 53px); }
         }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .pulse-ring {
+            box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.7);
+            animation: pulse-ring 1.5s infinite cubic-bezier(0.66, 0, 0, 1);
+        }
+        @keyframes pulse-ring {
+            to { box-shadow: 0 0 0 15px rgba(225, 29, 72, 0); }
+        }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100 font-sans antialiased overflow-x-hidden selection:bg-rose-500 selection:text-white">
+<body class="bg-gray-950 text-gray-100 font-sans antialiased overflow-x-hidden selection:bg-rose-500 selection:text-white">
 
-    <!-- PANTALLA DE LOGIN / REGISTRO -->
+    <!-- PANTALLA DE AUTENTICACIÓN / LOGIN -->
     <div id="authScreen" class="fixed inset-0 z-[2000] bg-gray-950 flex items-center justify-center p-4">
         <div class="bg-gray-900 border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative overflow-hidden">
-            <div class="text-center mb-8">
+            <div class="text-center mb-6">
                 <div class="w-16 h-16 bg-rose-600/20 border border-rose-500/30 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-rose-600/10">
-                    <i data-lucide="car" class="w-9 h-9 text-rose-500"></i>
+                    <i data-lucide="bike" class="w-9 h-9 text-rose-500"></i>
                 </div>
                 <h1 class="text-3xl font-black tracking-tight text-white">Rincón <span class="text-rose-500">Go</span></h1>
-                <p class="text-xs text-rose-400 font-semibold tracking-wider uppercase mt-0.5">App Conductores - Rincón de los Sauces</p>
+                <p class="text-xs text-rose-400 font-semibold tracking-wider uppercase mt-0.5">Ecosistema de Repartidores - Rincón de los Sauces</p>
             </div>
 
             <!-- Botón Google -->
-            <button type="button" onclick="loginWithGoogle()" class="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 transition shadow-lg mb-5 cursor-pointer">
+            <button type="button" onclick="loginWithGoogle()" class="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 transition shadow-lg mb-4 cursor-pointer">
                 <svg class="w-5 h-5" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -158,9 +184,9 @@
                 Iniciar sesión con Google
             </button>
 
-            <div class="relative flex py-2 items-center mb-5">
+            <div class="relative flex py-2 items-center mb-4">
                 <div class="flex-grow border-t border-gray-800"></div>
-                <span class="flex-shrink mx-4 text-xs text-gray-500 uppercase font-medium">o con correo</span>
+                <span class="flex-shrink mx-4 text-xs text-gray-500 uppercase font-medium">o con credenciales</span>
                 <div class="flex-grow border-t border-gray-800"></div>
             </div>
 
@@ -168,61 +194,71 @@
             <form onsubmit="loginWithEmail(event)" class="space-y-4">
                 <div>
                     <label class="block text-xs text-gray-400 mb-1">Correo Electrónico</label>
-                    <input type="email" id="loginEmail" required placeholder="conductor@rincongo.com" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500">
+                    <input type="email" id="loginEmail" required placeholder="tuemail@ejemplo.com" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500">
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-400 mb-1">Contraseña</label>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="text-xs text-gray-400">Contraseña</label>
+                        <button type="button" onclick="resetPassword()" class="text-[11px] text-rose-400 hover:underline">¿Olvidaste tu clave?</button>
+                    </div>
                     <input type="password" id="loginPass" required placeholder="••••••••" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500">
                 </div>
                 <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3.5 px-4 rounded-xl transition shadow-lg shadow-rose-600/30 cursor-pointer">
-                    Ingresar a Rincón Go
+                    Ingresar al Sistema
                 </button>
             </form>
+            <p class="text-[10px] text-center text-gray-500 mt-4">Al ingresar aceptás las condiciones de servicio de Rincón Go.</p>
         </div>
     </div>
 
-    <!-- APP CONTAINER -->
+    <!-- APP CONTAINER PRINCIPAL -->
     <div id="appContainer" class="hidden min-h-screen flex flex-col pb-20 md:pb-0">
-        <!-- HEADER TOP BAR -->
+        <!-- BARRA SUPERIOR (HEADER) -->
         <header class="bg-gray-900 border-b border-gray-800 h-16 px-4 flex items-center justify-between sticky top-0 z-50">
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-rose-600/20">
-                    <i data-lucide="car" class="w-6 h-6"></i>
+                    <i data-lucide="bike" class="w-6 h-6"></i>
                 </div>
                 <div>
                     <h1 class="font-bold text-lg leading-tight">Rincón <span class="text-rose-500">Go</span></h1>
-                    <p class="text-[10px] text-gray-400 font-medium">Conductores - Rincón de los Sauces</p>
+                    <p class="text-[10px] text-gray-400 font-medium">Repartidores - Rincón de los Sauces</p>
                 </div>
             </div>
 
-            <!-- Estado Online / Offline -->
-            <div class="flex items-center gap-3">
-                <button onclick="triggerIncomingTrip()" class="hidden md:flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-xs px-3 py-2 rounded-xl transition text-rose-400 cursor-pointer">
-                    <i data-lucide="zap" class="w-4 h-4"></i> Simular Viaje
+            <!-- Botones de Estado y Simulación -->
+            <div class="flex items-center gap-2">
+                <button onclick="triggerIncomingTrip()" class="hidden sm:flex items-center gap-1.5 bg-rose-600/10 border border-rose-500/30 hover:bg-rose-600/20 text-rose-400 text-xs px-3 py-1.5 rounded-xl transition cursor-pointer">
+                    <i data-lucide="zap" class="w-4 h-4"></i> Simular Pedido
                 </button>
                 <button id="statusToggleBtn" onclick="toggleOnlineStatus()" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition bg-gray-800 text-gray-400 border-gray-700 cursor-pointer">
                     <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-gray-500"></span>
-                    <span id="statusText">Fuera de línea</span>
+                    <span id="statusText">Desconectado</span>
                 </button>
             </div>
         </header>
 
-        <!-- MAIN LAYOUT -->
+        <!-- LAYOUT DE CONTENIDO Y NAVEGACIÓN -->
         <div class="flex-1 flex flex-col md:flex-row relative">
             
-            <!-- NAVEGACIÓN LATERAL Y BOTTOM -->
+            <!-- MENÚ DE NAVEGACIÓN LATERAL / INFERIOR -->
             <nav class="fixed bottom-0 left-0 right-0 md:relative md:w-64 bg-gray-900 border-t md:border-t-0 md:border-r border-gray-800 z-40 flex md:flex-col justify-around md:justify-start p-2 md:p-4 gap-1 md:gap-2">
                 <button onclick="switchTab('map')" id="nav-map" class="nav-btn active flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-rose-500 bg-rose-500/10 cursor-pointer">
-                    <i data-lucide="map-pin" class="w-5 h-5"></i> <span>Mapa y Viajes</span>
+                    <i data-lucide="map-pin" class="w-5 h-5"></i> <span>Mapa & Pedidos</span>
+                </button>
+                <button onclick="switchTab('history')" id="nav-history" class="nav-btn flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-gray-400 hover:bg-gray-800 cursor-pointer">
+                    <i data-lucide="clock" class="w-5 h-5"></i> <span>Historial</span>
                 </button>
                 <button onclick="switchTab('earnings')" id="nav-earnings" class="nav-btn flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-gray-400 hover:bg-gray-800 cursor-pointer">
-                    <i data-lucide="wallet" class="w-5 h-5"></i> <span>Ganancias & Cobros</span>
+                    <i data-lucide="wallet" class="w-5 h-5"></i> <span>Ganancias</span>
                 </button>
                 <button onclick="switchTab('vehicle')" id="nav-vehicle" class="nav-btn flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-gray-400 hover:bg-gray-800 cursor-pointer">
                     <i data-lucide="file-text" class="w-5 h-5"></i> <span>Vehículo & CAT</span>
                 </button>
                 <button onclick="switchTab('profile')" id="nav-profile" class="nav-btn flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-gray-400 hover:bg-gray-800 cursor-pointer">
-                    <i data-lucide="user" class="w-5 h-5"></i> <span>Mi Cuenta</span>
+                    <i data-lucide="user" class="w-5 h-5"></i> <span>Mi Perfil</span>
+                </button>
+                <button onclick="switchTab('help')" id="nav-help" class="nav-btn flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-gray-400 hover:bg-gray-800 cursor-pointer">
+                    <i data-lucide="help-circle" class="w-5 h-5"></i> <span>Ayuda</span>
                 </button>
 
                 <div class="hidden md:block mt-auto pt-4 border-t border-gray-800">
@@ -232,40 +268,95 @@
                 </div>
             </nav>
 
-            <!-- CONTENIDO PRINCIPAL -->
+            <!-- VISTAS / PANTALLAS PRINCIPALES -->
             <main class="flex-1 relative bg-gray-950 overflow-y-auto">
                 
-                <!-- VISTA MAPA -->
+                <!-- 1. VISTA MAPA Y PEDIDOS -->
                 <section id="tab-map" class="tab-content block h-full relative">
+                    <!-- BARRA DE FILTROS Y BÚSQUEDA -->
+                    <div class="bg-gray-900 border-b border-gray-800 p-2.5 flex items-center gap-2 overflow-x-auto hide-scrollbar z-30 relative shadow-md">
+                        <span class="text-xs text-gray-400 font-semibold px-2 shrink-0"><i data-lucide="filter" class="w-3.5 h-3.5 inline mr-1"></i> Filtrar:</span>
+                        <button onclick="filterOrders('all')" id="filter-all" class="filter-btn bg-rose-600 text-white text-xs px-3 py-1.5 rounded-full font-medium shrink-0 transition cursor-pointer">Todos</button>
+                        <button onclick="filterOrders('food')" id="filter-food" class="filter-btn bg-gray-800 text-gray-300 hover:bg-gray-700 text-xs px-3 py-1.5 rounded-full font-medium shrink-0 transition cursor-pointer">🍔 Gastronomía</button>
+                        <button onclick="filterOrders('market')" id="filter-market" class="filter-btn bg-gray-800 text-gray-300 hover:bg-gray-700 text-xs px-3 py-1.5 rounded-full font-medium shrink-0 transition cursor-pointer">🛒 Supermercados</button>
+                        <button onclick="filterOrders('express')" id="filter-express" class="filter-btn bg-gray-800 text-gray-300 hover:bg-gray-700 text-xs px-3 py-1.5 rounded-full font-medium shrink-0 transition cursor-pointer">⚡ Mandados Express</button>
+                        <button onclick="filterOrders('pharma')" id="filter-pharma" class="filter-btn bg-gray-800 text-gray-300 hover:bg-gray-700 text-xs px-3 py-1.5 rounded-full font-medium shrink-0 transition cursor-pointer">💊 Farmacias</button>
+                    </div>
+
+                    <!-- MAPA LEAFLET -->
                     <div id="map" class="w-full map-container z-10"></div>
 
-                    <!-- Panel Flotante Inferior Mapa -->
+                    <!-- PANEL DE ESTADO ACTIVO / PEDIDO EN CURSO -->
+                    <div id="activeOrderCard" class="hidden absolute top-16 left-4 right-4 z-30 max-w-md mx-auto bg-gray-900 border-2 border-rose-500 rounded-2xl p-4 shadow-2xl">
+                        <div class="flex items-center justify-between border-b border-gray-800 pb-2 mb-3">
+                            <span class="bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase">En Progreso</span>
+                            <span id="activeOrderPrice" class="text-emerald-400 font-bold text-base">$ 3.800</span>
+                        </div>
+                        <div class="space-y-2 text-xs mb-4">
+                            <p class="font-bold text-white flex items-center gap-1.5"><i data-lucide="store" class="w-4 h-4 text-rose-400"></i> Comercio: <span id="activeStoreName" class="font-normal text-gray-300">Llomitos Rincón</span></p>
+                            <p class="font-bold text-white flex items-center gap-1.5"><i data-lucide="user" class="w-4 h-4 text-rose-400"></i> Cliente: <span id="activeClientName" class="font-normal text-gray-300">Mariana Gómez</span></p>
+                            <p class="font-bold text-white flex items-center gap-1.5"><i data-lucide="map-pin" class="w-4 h-4 text-emerald-400"></i> Destino: <span id="activeClientAddress" class="font-normal text-gray-300">Calle Chubut 450</span></p>
+                        </div>
+                        <!-- Botón de avance de estado -->
+                        <button id="orderStepBtn" onclick="advanceOrderStep()" class="w-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-3 rounded-xl transition shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 cursor-pointer">
+                            <i data-lucide="check-circle" class="w-4 h-4"></i> <span id="orderStepText">Llegué al Local</span>
+                        </button>
+                    </div>
+
+                    <!-- PANEL INFERIOR DE COBERTURA Y SIMULACIÓN MÓVIL -->
                     <div class="absolute bottom-4 left-4 right-4 z-20 max-w-md mx-auto">
-                        <div class="bg-gray-900/90 backdrop-blur-md border border-gray-800 rounded-2xl p-4 shadow-xl">
+                        <div class="bg-gray-900/95 backdrop-blur-md border border-gray-800 rounded-2xl p-4 shadow-xl">
                             <div class="flex items-center justify-between mb-2">
                                 <div class="flex items-center gap-2">
                                     <i data-lucide="navigation" class="w-4 h-4 text-rose-500"></i>
-                                    <span class="text-xs font-semibold text-gray-300">Zona Exclusiva</span>
+                                    <span class="text-xs font-semibold text-gray-300">Zona Urbana e Industrial</span>
                                 </div>
                                 <span class="text-[11px] bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full font-medium">Rincón de los Sauces</span>
                             </div>
-                            <p class="text-xs text-gray-400">GPS Activo. Operando estrictamente en la zona urbana e industrial.</p>
-                            <button onclick="triggerIncomingTrip()" class="mt-3 w-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer">
-                                <i data-lucide="play" class="w-4 h-4"></i> Simular Solicitud de Viaje
+                            <p class="text-xs text-gray-400">GPS Conectado. Esperando nuevas solicitudes de comercios cercanos.</p>
+                            <button onclick="triggerIncomingTrip()" class="mt-3 w-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-rose-600/30 sm:hidden">
+                                <i data-lucide="play" class="w-4 h-4"></i> Simular Pedido Entrante
                             </button>
                         </div>
                     </div>
                 </section>
 
-                <!-- VISTA GANANCIAS Y COBROS -->
+                <!-- 2. VISTA HISTORIAL DE PEDIDOS -->
+                <section id="tab-history" class="tab-content hidden p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+                    <div>
+                        <h2 class="text-xl font-bold">Historial de Entregas</h2>
+                        <p class="text-xs text-gray-400">Registro detallado de tus viajes realizados en Rincón de los Sauces</p>
+                    </div>
+
+                    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead>
+                                <tr class="text-gray-400 border-b border-gray-800">
+                                    <th class="pb-3 font-semibold">Fecha / Hora</th>
+                                    <th class="pb-3 font-semibold">Comercio</th>
+                                    <th class="pb-3 font-semibold">Destino</th>
+                                    <th class="pb-3 font-semibold">Ganancia</th>
+                                    <th class="pb-3 font-semibold">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyTableBody" class="divide-y divide-gray-800 text-gray-300">
+                                <tr>
+                                    <td colspan="5" class="py-6 text-center text-gray-500">Aún no realizaste viajes hoy. ¡Conectate para recibir pedidos!</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- 3. VISTA GANANCIAS Y COBROS -->
                 <section id="tab-earnings" class="tab-content hidden p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
                     <div class="flex items-center justify-between">
                         <div>
                             <h2 class="text-xl font-bold">Ganancias & Retiros</h2>
-                            <p class="text-xs text-gray-400">Resumen financiero y transferencias directas</p>
+                            <p class="text-xs text-gray-400">Resumen de ingresos y transferencias directas</p>
                         </div>
                         <button onclick="openWithdrawModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition cursor-pointer">
-                            <i data-lucide="arrow-up-right" class="w-4 h-4"></i> Cobrar Ganancias
+                            <i data-lucide="arrow-up-right" class="w-4 h-4"></i> Retirar Ganancias
                         </button>
                     </div>
 
@@ -274,90 +365,88 @@
                         <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
                             <p class="text-xs text-gray-400">Saldo Disponible</p>
                             <p id="balanceAmount" class="text-2xl font-black text-emerald-400 mt-1">$ 0</p>
-                            <span class="text-[10px] text-gray-500">Listo para retirar</span>
+                            <span class="text-[10px] text-gray-500">Disponible para transferir</span>
                         </div>
                         <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
-                            <p class="text-xs text-gray-400">Ganancias de Hoy</p>
+                            <p class="text-xs text-gray-400">Hoy</p>
                             <p id="todayEarnings" class="text-2xl font-black text-white mt-1">$ 0</p>
-                            <span class="text-[10px] text-emerald-400">0 viajes realizados</span>
+                            <span id="todayCount" class="text-[10px] text-emerald-400">0 envíos</span>
                         </div>
                         <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
                             <p class="text-xs text-gray-400">Esta Semana</p>
                             <p id="weekEarnings" class="text-2xl font-black text-white mt-1">$ 0</p>
-                            <span class="text-[10px] text-gray-500">0 viajes en total</span>
+                            <span class="text-[10px] text-gray-500">0 viajes acumulados</span>
                         </div>
                     </div>
 
-                    <!-- Gráfico de Ganancias -->
+                    <!-- Gráfico -->
                     <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
-                        <h3 class="text-xs font-bold text-gray-300 mb-4">Ganancias de los últimos 7 días</h3>
+                        <h3 class="text-xs font-bold text-gray-300 mb-4">Ingresos semanales ($)</h3>
                         <div class="relative w-full h-48">
                             <canvas id="earningsChart"></canvas>
                         </div>
                     </div>
                 </section>
 
-                <!-- VISTA VEHÍCULO Y DOCUMENTACIÓN / CAT -->
+                <!-- 4. VISTA VEHÍCULO Y CAT -->
                 <section id="tab-vehicle" class="tab-content hidden p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
                     <div>
                         <h2 class="text-xl font-bold">Vehículo & Documentación (CAT)</h2>
-                        <p class="text-xs text-gray-400">Configurá los datos del auto y tu cédula de autorización</p>
+                        <p class="text-xs text-gray-400">Información del vehículo y autorización de circulación municipal</p>
                     </div>
 
                     <form onsubmit="saveVehicleData(event)" class="space-y-6">
-                        <!-- Datos del Vehículo -->
                         <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl space-y-4">
                             <h3 class="text-sm font-bold text-rose-400 flex items-center gap-2">
-                                <i data-lucide="car" class="w-4 h-4"></i> Información del Auto
+                                <i data-lucide="bike" class="w-4 h-4"></i> Datos del Vehículo
                             </h3>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs text-gray-400 mb-1">Marca y Modelo</label>
-                                    <input type="text" id="vehBrand" placeholder="ej: Toyota Etios" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
+                                    <label class="block text-xs text-gray-400 mb-1">Vehículo / Modelo</label>
+                                    <input type="text" id="vehBrand" placeholder="ej: Honda Wave 110 / Toyota Etios" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
                                 </div>
                                 <div>
                                     <label class="block text-xs text-gray-400 mb-1">Patente / Dominio</label>
-                                    <input type="text" id="vehPlate" placeholder="ej: AB 123 CD" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
+                                    <input type="text" id="vehPlate" placeholder="ej: A123BCD" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
                                 </div>
                                 <div>
                                     <label class="block text-xs text-gray-400 mb-1">Año</label>
-                                    <input type="text" id="vehYear" placeholder="ej: 2022" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
+                                    <input type="text" id="vehYear" placeholder="ej: 2023" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
                                 </div>
                                 <div>
                                     <label class="block text-xs text-gray-400 mb-1">Color</label>
-                                    <input type="text" id="vehColor" placeholder="ej: Blanco" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
+                                    <input type="text" id="vehColor" placeholder="ej: Rojo / Negro" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Cédula CAT / Documentación -->
                         <div class="bg-gray-900 border border-gray-800 p-5 rounded-2xl space-y-4">
                             <h3 class="text-sm font-bold text-rose-400 flex items-center gap-2">
-                                <i data-lucide="shield-check" class="w-4 h-4"></i> Cédula de Vehículo / CAT & Licencia
+                                <i data-lucide="shield-check" class="w-4 h-4"></i> Cédula / CAT Autorización
                             </h3>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs text-gray-400 mb-1">Número de Cédula Verde / Azul (CAT)</label>
-                                    <input type="text" id="catNumber" placeholder="ej: CAT-0000000-RN" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
+                                    <label class="block text-xs text-gray-400 mb-1">Número de Cédula o CAT</label>
+                                    <input type="text" id="catNumber" placeholder="ej: CAT-123456-RN" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
                                 </div>
                                 <div>
-                                    <label class="block text-xs text-gray-400 mb-1">Vencimiento CAT</label>
+                                    <label class="block text-xs text-gray-400 mb-1">Vencimiento Habilitación</label>
                                     <input type="date" id="catExp" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
                                 </div>
                             </div>
                         </div>
 
                         <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-rose-600/20 cursor-pointer">
-                            Guardar Cambios del Vehículo
+                            Guardar Datos
                         </button>
                     </form>
                 </section>
 
-                <!-- VISTA PERFIL Y MI CUENTA -->
+                <!-- 5. VISTA PERFIL -->
                 <section id="tab-profile" class="tab-content hidden p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
                     <div>
                         <h2 class="text-xl font-bold">Mi Cuenta</h2>
-                        <p class="text-xs text-gray-400">Gestioná tus datos personales y credenciales</p>
+                        <p class="text-xs text-gray-400">Configuración de la cuenta de repartidor</p>
                     </div>
 
                     <form onsubmit="saveProfileData(event)" class="bg-gray-900 border border-gray-800 p-5 rounded-2xl space-y-4">
@@ -366,9 +455,9 @@
                                 RG
                             </div>
                             <div>
-                                <h3 id="profileDisplayName" class="text-base font-bold">Conductor</h3>
-                                <p id="profileDisplayEmail" class="text-xs text-gray-400">conductor@rincongo.com</p>
-                                <span class="inline-block mt-1 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-semibold">Conductor Verificado</span>
+                                <h3 id="profileDisplayName" class="text-base font-bold">Repartidor</h3>
+                                <p id="profileDisplayEmail" class="text-xs text-gray-400">repartidor@rincongo.com</p>
+                                <span class="inline-block mt-1 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-semibold">Repartidor Activo</span>
                             </div>
                         </div>
 
@@ -378,7 +467,7 @@
                                 <input type="text" id="profName" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
                             </div>
                             <div>
-                                <label class="block text-xs text-gray-400 mb-1">Teléfono</label>
+                                <label class="block text-xs text-gray-400 mb-1">Teléfono de Contacto</label>
                                 <input type="text" id="profPhone" placeholder="+54 299..." class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
                             </div>
                             <div class="sm:col-span-2">
@@ -387,17 +476,40 @@
                             </div>
                         </div>
 
-                        <div class="pt-2">
-                            <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-rose-600/20 cursor-pointer">
-                                Actualizar Datos Personales
-                            </button>
-                        </div>
+                        <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-rose-600/20 cursor-pointer">
+                            Actualizar Datos
+                        </button>
                     </form>
 
                     <div class="md:hidden pt-4">
                         <button onclick="logout()" class="w-full bg-red-600/10 border border-red-500/20 text-red-400 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer">
                             <i data-lucide="log-out" class="w-4 h-4"></i> Cerrar Sesión
                         </button>
+                    </div>
+                </section>
+
+                <!-- 6. VISTA AYUDA Y SOPORTE -->
+                <section id="tab-help" class="tab-content hidden p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+                    <div>
+                        <h2 class="text-xl font-bold">Centro de Ayuda & Soporte</h2>
+                        <p class="text-xs text-gray-400">Respuestas rápidas para repartidores en Rincón de los Sauces</p>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
+                            <h3 class="text-sm font-bold text-white mb-1">¿Cómo cobro mis ganancias?</h3>
+                            <p class="text-xs text-gray-400">Ingresá a la pestaña "Ganancias", hacé clic en "Retirar Ganancias" y colocá tu CVU o Alias de Mercado Pago. Las transferencias se procesan inmediatamente.</p>
+                        </div>
+                        <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
+                            <h3 class="text-sm font-bold text-white mb-1">¿Cuál es la zona de cobertura?</h3>
+                            <p class="text-xs text-gray-400">La aplicación opera dentro del radio urbano de Rincón de los Sauces y zonas asignadas de yacimiento.</p>
+                        </div>
+                        <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
+                            <h3 class="text-sm font-bold text-white mb-1">¿Soporte Técnico o Emergencias?</h3>
+                            <a href="https://wa.me/5492990000000" target="_blank" class="inline-flex items-center gap-2 mt-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition">
+                                <i data-lucide="message-square" class="w-4 h-4"></i> Contactar Soporte por WhatsApp
+                            </a>
+                        </div>
                     </div>
                 </section>
 
@@ -415,20 +527,19 @@
                 <button onclick="closeWithdrawModal()" class="text-gray-400 hover:text-white cursor-pointer"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
             
-            <p class="text-xs text-gray-400">Ingresá tu CBU, CVU o Alias para recibir la transferencia de tus viajes.</p>
+            <p class="text-xs text-gray-400">Ingresá tu CBU, CVU o Alias para recibir la transferencia inmediata.</p>
 
             <form onsubmit="submitWithdraw(event)" class="space-y-4">
                 <div>
                     <label class="block text-xs text-gray-400 mb-1">Monto a Retirar ($)</label>
                     <input type="number" id="withdrawAmount" value="0" required class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
-                    <p class="text-[10px] text-gray-500 mt-1">Saldo disponible: $0</p>
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-400 mb-1">CBU / CVU o Alias</label>
+                    <label class="block text-xs text-gray-400 mb-1">CVU / Alias (ej: Mercado Pago)</label>
                     <input type="text" id="withdrawAlias" required placeholder="ej: tu.alias.mp" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-400 mb-1">Titular de la cuenta</label>
+                    <label class="block text-xs text-gray-400 mb-1">Titular de la Cuenta</label>
                     <input type="text" id="withdrawHolder" required class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
                 </div>
                 <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-600/20 cursor-pointer">
@@ -438,32 +549,32 @@
         </div>
     </div>
 
-    <!-- MODAL SOLICITUD DE VIAJE ENTRANTE -->
+    <!-- MODAL NOTIFICACIÓN DE PEDIDO ENTRANTE -->
     <div id="tripModal" class="fixed inset-0 z-[3000] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
-        <div class="bg-gray-900 border border-rose-500/50 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 relative overflow-hidden">
+        <div class="bg-gray-900 border border-rose-500/50 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 relative overflow-hidden pulse-ring">
             <div class="flex items-center justify-between">
-                <span class="bg-rose-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase">Nuevo Pedido / Viaje</span>
-                <span id="tripTimer" class="text-rose-400 font-mono font-bold text-sm">15s</span>
+                <span class="bg-rose-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase">🍔 ¡Nuevo Pedido Entrante!</span>
+                <span id="tripTimer" class="text-rose-400 font-mono font-bold text-sm">20s</span>
             </div>
 
             <div>
-                <p class="text-2xl font-black text-white">$ 3.400</p>
+                <p id="modalTripPrice" class="text-3xl font-black text-white">$ 3.800</p>
                 <p class="text-xs text-gray-400">Entrega en Rincón de los Sauces</p>
             </div>
 
             <div class="space-y-2 text-xs border-t border-b border-gray-800 py-3">
                 <div class="flex items-start gap-2">
-                    <i data-lucide="map-pin" class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5"></i>
+                    <i data-lucide="store" class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5"></i>
                     <div>
-                        <p class="text-gray-400 text-[10px]">Origen (Comercio / Plaza)</p>
-                        <p class="font-semibold text-gray-200">Plaza San Martín, Rincón de los Sauces</p>
+                        <p class="text-gray-400 text-[10px]">Retiro en Comercio</p>
+                        <p id="modalStore" class="font-semibold text-gray-200">Llomitos / Centro Comercial</p>
                     </div>
                 </div>
                 <div class="flex items-start gap-2">
                     <i data-lucide="navigation" class="w-4 h-4 text-rose-400 shrink-0 mt-0.5"></i>
                     <div>
-                        <p class="text-gray-400 text-[10px]">Destino (Entrega)</p>
-                        <p class="font-semibold text-gray-200">Calle La Pampa / Yacimiento</p>
+                        <p class="text-gray-400 text-[10px]">Entrega a Cliente</p>
+                        <p id="modalClient" class="font-semibold text-gray-200">Calle La Pampa / Sector B</p>
                     </div>
                 </div>
             </div>
@@ -479,7 +590,7 @@
         </div>
     </div>
 
-    <!-- LOGICA DE LA APLICACIÓN -->
+    <!-- LÓGICA JAVASCRIPT DE LA APLICACIÓN -->
     <script>
         lucide.createIcons();
 
@@ -487,18 +598,19 @@
         let map, chart;
         let tripCountdown;
         let driverMarker = null;
+        let orderStep = 0; // 0: Sin pedido, 1: En camino al local, 2: Pedido retirado, 3: Entregado
+        let currentTripValue = 3800;
 
         function initApp() {
             initMap();
             initChart();
             loadSavedData();
+            renderHistory();
         }
 
         function loadSavedData() {
             const savedProfile = JSON.parse(localStorage.getItem('rincon_go_profile') || '{}');
-            if (savedProfile.phone) {
-                document.getElementById('profPhone').value = savedProfile.phone;
-            }
+            if (savedProfile.phone) document.getElementById('profPhone').value = savedProfile.phone;
 
             const savedVehicle = JSON.parse(localStorage.getItem('rincon_go_vehicle') || '{}');
             if (savedVehicle.brand) {
@@ -512,18 +624,15 @@
             const balance = Number(localStorage.getItem('rincon_go_balance') || '0');
             document.getElementById('balanceAmount').innerText = `$ ${balance.toLocaleString('es-AR')}`;
             document.getElementById('withdrawAmount').value = balance;
-            document.getElementById('withdrawAmount').max = balance;
+
+            const todayVal = Number(localStorage.getItem('rincon_go_today') || '0');
+            document.getElementById('todayEarnings').innerText = `$ ${todayVal.toLocaleString('es-AR')}`;
         }
 
         function initMap() {
             if (map) return;
-
             const rinconCenter = [-37.387, -68.927];
-
-            const bounds = L.latLngBounds(
-                [-37.420, -68.970], 
-                [-37.350, -68.880]  
-            );
+            const bounds = L.latLngBounds([-37.420, -68.970], [-37.350, -68.880]);
 
             map = L.map('map', {
                 center: rinconCenter,
@@ -540,7 +649,7 @@
 
             const driverIcon = L.divIcon({
                 className: 'custom-div-icon',
-                html: `<div class="w-8 h-8 bg-rose-600 border-2 border-white rounded-full flex items-center justify-center text-white shadow-lg"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div>`,
+                html: `<div class="w-8 h-8 bg-rose-600 border-2 border-white rounded-full flex items-center justify-center text-white shadow-lg"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg></div>`,
                 iconSize: [32, 32],
                 iconAnchor: [16, 16]
             });
@@ -557,25 +666,19 @@
                         if (isOnline) map.panTo(newLatLng);
                     }
                 }, error => {
-                    console.log("GPS usando ubicación predeterminada.");
+                    console.log("GPS fijado en centro de Rincón de los Sauces.");
                 }, { enableHighAccuracy: true });
             }
+        }
 
-            const spots = [
-                { name: "Plaza San Martín", lat: -37.388, lng: -68.928 },
-                { name: "Yacimiento Puesto Hernández", lat: -37.365, lng: -68.905 },
-                { name: "Hospital Dren Challen", lat: -37.391, lng: -68.922 },
-                { name: "Terminal de Ómnibus", lat: -37.384, lng: -68.932 }
-            ];
-
-            spots.forEach(spot => {
-                L.circleMarker([spot.lat, spot.lng], {
-                    radius: 6,
-                    color: '#e11d48',
-                    fillColor: '#e11d48',
-                    fillOpacity: 0.6
-                }).addTo(map).bindPopup(spot.name);
+        function filterOrders(category) {
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.className = "filter-btn bg-gray-800 text-gray-300 hover:bg-gray-700 text-xs px-3 py-1.5 rounded-full font-medium shrink-0 transition cursor-pointer";
             });
+            const activeBtn = document.getElementById(`filter-${category}`);
+            if (activeBtn) {
+                activeBtn.className = "filter-btn bg-rose-600 text-white text-xs px-3 py-1.5 rounded-full font-medium shrink-0 transition cursor-pointer";
+            }
         }
 
         function switchTab(tabId) {
@@ -587,8 +690,10 @@
 
             document.getElementById(`tab-${tabId}`).classList.remove('hidden');
             const activeNav = document.getElementById(`nav-${tabId}`);
-            activeNav.classList.remove('text-gray-400');
-            activeNav.classList.add('text-rose-500', 'bg-rose-500/10');
+            if (activeNav) {
+                activeNav.classList.remove('text-gray-400');
+                activeNav.classList.add('text-rose-500', 'bg-rose-500/10');
+            }
 
             if (tabId === 'map' && map) {
                 setTimeout(() => map.invalidateSize(), 100);
@@ -604,11 +709,11 @@
             if (isOnline) {
                 btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition bg-emerald-500/10 text-emerald-400 border-emerald-500/30 cursor-pointer";
                 dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse";
-                text.innerText = "En línea";
+                text.innerText = "Conectado";
             } else {
                 btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition bg-gray-800 text-gray-400 border-gray-700 cursor-pointer";
                 dot.className = "w-2.5 h-2.5 rounded-full bg-gray-500";
-                text.innerText = "Fuera de línea";
+                text.innerText = "Desconectado";
             }
         }
 
@@ -617,7 +722,7 @@
             const timerEl = document.getElementById('tripTimer');
             modal.classList.remove('hidden');
 
-            let timeLeft = 15;
+            let timeLeft = 20;
             timerEl.innerText = `${timeLeft}s`;
 
             clearInterval(tripCountdown);
@@ -635,13 +740,39 @@
             clearInterval(tripCountdown);
             document.getElementById('tripModal').classList.add('hidden');
             
-            // Sumar $3.400 reales al saldo al aceptar el pedido
-            let currentBalance = Number(localStorage.getItem('rincon_go_balance') || '0');
-            currentBalance += 3400;
-            localStorage.setItem('rincon_go_balance', currentBalance);
-            loadSavedData();
+            orderStep = 1;
+            document.getElementById('activeOrderCard').classList.remove('hidden');
+            document.getElementById('orderStepText').innerText = "Llegué al Local (Retirar Pedido)";
+        }
 
-            alert('¡Pedido aceptado! Dirigite a Plaza San Martín a buscar el pedido.');
+        function advanceOrderStep() {
+            if (orderStep === 1) {
+                orderStep = 2;
+                document.getElementById('orderStepText').innerText = "Confirmar Entrega al Cliente";
+                alert('¡Pedido retirado del local! Dirigite a la dirección de entrega.');
+            } else if (orderStep === 2) {
+                orderStep = 0;
+                document.getElementById('activeOrderCard').classList.add('hidden');
+
+                // Sumar $3.800 reales al saldo y al acumulado de hoy
+                let balance = Number(localStorage.getItem('rincon_go_balance') || '0') + currentTripValue;
+                let today = Number(localStorage.getItem('rincon_go_today') || '0') + currentTripValue;
+
+                localStorage.setItem('rincon_go_balance', balance);
+                localStorage.setItem('rincon_go_today', today);
+
+                // Guardar en historial
+                saveHistoryItem({
+                    date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    store: "Llomitos Rincón",
+                    dest: "Calle Chubut 450",
+                    amount: currentTripValue
+                });
+
+                loadSavedData();
+                renderHistory();
+                alert('¡Pedido entregado con éxito! Se acreditaron $' + currentTripValue + ' a tu saldo.');
+            }
         }
 
         function rejectTrip() {
@@ -649,19 +780,46 @@
             document.getElementById('tripModal').classList.add('hidden');
         }
 
-        function openWithdrawModal() {
-            document.getElementById('withdrawModal').classList.remove('hidden');
+        function saveHistoryItem(item) {
+            let history = JSON.parse(localStorage.getItem('rincon_go_history') || '[]');
+            history.unshift(item);
+            localStorage.setItem('rincon_go_history', JSON.stringify(history));
         }
 
-        function closeWithdrawModal() {
-            document.getElementById('withdrawModal').classList.add('hidden');
+        function renderHistory() {
+            const tbody = document.getElementById('historyTableBody');
+            let history = JSON.parse(localStorage.getItem('rincon_go_history') || '[]');
+
+            if (history.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-gray-500">Aún no realizaste viajes hoy. ¡Conectate para recibir pedidos!</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = history.map(h => `
+                <tr class="hover:bg-gray-800/50 transition">
+                    <td class="py-3 font-medium text-gray-400">${h.date}</td>
+                    <td class="py-3 font-semibold text-white">${h.store}</td>
+                    <td class="py-3 text-gray-300">${h.dest}</td>
+                    <td class="py-3 text-emerald-400 font-bold">+$ ${h.amount.toLocaleString('es-AR')}</td>
+                    <td class="py-3"><span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full text-[10px] font-semibold">Completado</span></td>
+                </tr>
+            `).join('');
         }
+
+        function openWithdrawModal() { document.getElementById('withdrawModal').classList.remove('hidden'); }
+        function closeWithdrawModal() { document.getElementById('withdrawModal').classList.add('hidden'); }
 
         function submitWithdraw(e) {
             e.preventDefault();
             const alias = document.getElementById('withdrawAlias').value;
             const balance = localStorage.getItem('rincon_go_balance') || '0';
-            alert(`¡Retiro de $${balance} solicitado con éxito al alias: ${alias}!`);
+            
+            if (Number(balance) <= 0) {
+                alert('No tenés saldo suficiente para retirar.');
+                return;
+            }
+
+            alert(`¡Solicitud de retiro enviada! Se transferirán $${balance} al alias ${alias}.`);
             localStorage.setItem('rincon_go_balance', '0');
             loadSavedData();
             closeWithdrawModal();
@@ -677,16 +835,13 @@
                 cat: document.getElementById('catNumber').value
             };
             localStorage.setItem('rincon_go_vehicle', JSON.stringify(vehicle));
-            alert('¡Datos del vehículo guardados!');
+            alert('¡Datos del vehículo guardados correctamente!');
         }
 
         function saveProfileData(e) {
             e.preventDefault();
-            const profile = {
-                phone: document.getElementById('profPhone').value
-            };
-            localStorage.setItem('rincon_go_profile', JSON.stringify(profile));
-            alert('¡Perfil actualizado!');
+            localStorage.setItem('rincon_go_profile', JSON.stringify({ phone: document.getElementById('profPhone').value }));
+            alert('¡Perfil de repartidor actualizado!');
         }
 
         function initChart() {
