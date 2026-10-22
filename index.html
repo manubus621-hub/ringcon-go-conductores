@@ -32,22 +32,26 @@
             sendPasswordResetEmail
         } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+<script type="module">
+  // Import the functions you need from the SDKs you need
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
+const firebaseConfig = {
+    apiKey: "AIzaSyDKrQcRn5zbW9VDiGBsgdAh6UlbOGAP4Ps",
+    authDomain: "ringcon-go.firebaseapp.com",
+    projectId: "ringcon-go",
+    storageBucket: "ringcon-go.firebasestorage.app",
+    messagingSenderId: "868935005608",
+    appId: "1:868935005608:web:82b9d581ffeaf689f2d99d",
+    measurementId: "G-E620RBVYPJ"
+};
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyOKrQcRn5zbW9VDiGBsgdAh6UlboGAP4Ps",
-            authDomain: "ringcon-go.firebaseapp.com",
-            projectId: "ringcon-go",
-            storageBucket: "ringcon-go.appspot.com",
-            messagingSenderId: "1071477174697",
-            appId: "1:1071477174697:web:8e18b824203efbc2251a23"
-        };
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        window.auth = auth;
-        window.db = db;
+window.auth = auth;
+window.db = db;
 
         // LOGIN CON GOOGLE
         window.loginWithGoogle = function() {
