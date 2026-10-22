@@ -1,187 +1,212 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rincón Go - Conductores</title>
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Leaflet JS & CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-
+<!-- JS LOGIC CORREGIDO -->
     <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            50: '#fff1f2',
-                            100: '#ffe4e6',
-                            500: '#e11d48',
-                            600: '#e11d48',
-                            700: '#be123c',
-                            800: '#9f1239',
-                        }
-                    }
-                }
+        // INIT LUCIDE ICONS
+        lucide.createIcons();
+
+        // ESTADO GLOBAL
+        let isOnline = false;
+        let map, chart;
+        let tripCountdown;
+
+        // AUTH FUNCTIONS (Corregidas para entrar al hacer clic)
+        function loginWithGoogle() {
+            document.getElementById('authScreen').style.display = 'none';
+            document.getElementById('appContainer').classList.remove('hidden');
+            initApp();
+        }
+
+        function loginWithEmail(e) {
+            if(e) e.preventDefault();
+            document.getElementById('authScreen').style.display = 'none';
+            document.getElementById('appContainer').classList.remove('hidden');
+            initApp();
+        }
+
+        function logout() {
+            document.getElementById('appContainer').classList.add('hidden');
+            document.getElementById('authScreen').style.display = 'flex';
+        }
+
+        // INICIALIZACIÓN APP
+        function initApp() {
+            initMap();
+            initChart();
+        }
+
+        // LEAFLET MAP ESTRICTO EN RINCÓN DE LOS SAUCES
+        function initMap() {
+            if (map) return;
+
+            // Coordenadas centro Rincón de los Sauces
+            const rinconCenter = [-37.387, -68.927];
+
+            // Delimitación estricta (Bounds)
+            const bounds = L.latLngBounds(
+                [-37.420, -68.970], // Sudoeste
+                [-37.350, -68.880]  // Noreste
+            );
+
+            map = L.map('map', {
+                center: rinconCenter,
+                zoom: 14,
+                minZoom: 13,
+                maxZoom: 17,
+                maxBounds: bounds,
+                maxBoundsViscosity: 1.0 // Impide arrastrar fuera del límite
+            });
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
+
+            // Marcador Conductor
+            const driverIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div class="w-8 h-8 bg-rose-600 border-2 border-white rounded-full flex items-center justify-center text-white shadow-lg"><i data-lucide="car" class="w-4 h-4"></i></div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            });
+
+            L.marker(rinconCenter, { icon: driverIcon }).addTo(map).bindPopup('<b>Tu ubicación</b><br>Rincón de los Sauces').openPopup();
+
+            // Puntos de Interés Locales
+            const spots = [
+                { name: "Plaza San Martín", lat: -37.388, lng: -68.928 },
+                { name: "Yacimiento Puesto Hernández", lat: -37.365, lng: -68.905 },
+                { name: "Hospital Dren Challen", lat: -37.391, lng: -68.922 },
+                { name: "Terminal de Ómnibus", lat: -37.384, lng: -68.932 }
+            ];
+
+            spots.forEach(spot => {
+                L.circleMarker([spot.lat, spot.lng], {
+                    radius: 6,
+                    color: '#e11d48',
+                    fillColor: '#e11d48',
+                    fillOpacity: 0.6
+                }).addTo(map).bindPopup(spot.name);
+            });
+        }
+
+        // CAMBIO DE TAB
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-btn').forEach(el => {
+                el.classList.remove('text-rose-500', 'bg-rose-500/10');
+                el.classList.add('text-gray-400');
+            });
+
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            const activeNav = document.getElementById(`nav-${tabId}`);
+            activeNav.classList.remove('text-gray-400');
+            activeNav.classList.add('text-rose-500', 'bg-rose-500/10');
+
+            if (tabId === 'map' && map) {
+                setTimeout(() => map.invalidateSize(), 100);
             }
         }
-    </script>
-    <style>
-        .map-container { height: calc(100vh - 64px - 72px); }
-        @media (min-width: 768px) {
-            .map-container { height: calc(100vh - 64px); }
+
+        // TOGGLE ONLINE STATUS
+        function toggleOnlineStatus() {
+            isOnline = !isOnline;
+            const btn = document.getElementById('statusToggleBtn');
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+
+            if (isOnline) {
+                btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
+                dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse";
+                text.innerText = "En línea";
+            } else {
+                btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition bg-gray-800 text-gray-400 border-gray-700";
+                dot.className = "w-2.5 h-2.5 rounded-full bg-gray-500";
+                text.innerText = "Fuera de línea";
+            }
         }
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    </style>
-</head>
-<body class="bg-gray-900 text-gray-100 font-sans antialiased overflow-x-hidden selection:bg-rose-500 selection:text-white">
 
-    <!-- PANTALLA DE LOGIN / REGISTRO -->
-    <div id="authScreen" class="fixed inset-0 z-[2000] bg-gray-950 flex items-center justify-center p-4">
-        <div class="bg-gray-900 border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative overflow-hidden">
-            <div class="text-center mb-8">
-                <div class="w-16 h-16 bg-rose-600/20 border border-rose-500/30 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-rose-600/10">
-                    <i data-lucide="car" class="w-9 h-9 text-rose-500"></i>
-                </div>
-                <h1 class="text-3xl font-black tracking-tight text-white">Rincón <span class="text-rose-500">Go</span></h1>
-                <p class="text-xs text-rose-400 font-semibold tracking-wider uppercase mt-0.5">App Conductores - Rincón de los Sauces</p>
-            </div>
+        // SIMULACIÓN SOLICITUD VIAJE
+        function triggerIncomingTrip() {
+            const modal = document.getElementById('tripModal');
+            const timerEl = document.getElementById('tripTimer');
+            modal.classList.remove('hidden');
 
-            <!-- Botón Google -->
-            <button onclick="loginWithGoogle()" class="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 transition shadow-lg mb-5">
-                <svg class="w-5 h-5" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                </svg>
-                Iniciar sesión con Google
-            </button>
+            let timeLeft = 15;
+            timerEl.innerText = `${timeLeft}s`;
 
-            <div class="relative flex py-2 items-center mb-5">
-                <div class="flex-grow border-t border-gray-800"></div>
-                <span class="flex-shrink mx-4 text-xs text-gray-500 uppercase font-medium">o con correo</span>
-                <div class="flex-grow border-t border-gray-800"></div>
-            </div>
+            clearInterval(tripCountdown);
+            tripCountdown = setInterval(() => {
+                timeLeft--;
+                timerEl.innerText = `${timeLeft}s`;
+                if (timeLeft <= 0) {
+                    clearInterval(tripCountdown);
+                    rejectTrip();
+                }
+            }, 1000);
+        }
 
-            <!-- Formulario Email -->
-            <form onsubmit="loginWithEmail(event)" class="space-y-4">
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Correo Electrónico</label>
-                    <input type="email" id="loginEmail" required placeholder="conductor@rincongo.com" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Contraseña</label>
-                    <input type="password" id="loginPass" required placeholder="••••••••" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500">
-                </div>
-                <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3.5 px-4 rounded-xl transition shadow-lg shadow-rose-600/30">
-                    Ingresar a Rincón Go
-                </button>
-            </form>
-        </div>
-    </div>
+        function acceptTrip() {
+            clearInterval(tripCountdown);
+            document.getElementById('tripModal').classList.add('hidden');
+            alert('¡Viaje aceptado! Dirigite a Plaza San Martín para buscar al pasajero.');
+        }
 
-    <!-- APP CONTAINER -->
-    <div id="appContainer" class="hidden min-h-screen flex flex-col pb-20 md:pb-0">
-        <!-- HEADER TOP BAR -->
-        <header class="bg-gray-900 border-b border-gray-800 h-16 px-4 flex items-center justify-between sticky top-0 z-50">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-rose-600/20">
-                    <i data-lucide="car" class="w-6 h-6"></i>
-                </div>
-                <div>
-                    <h1 class="font-bold text-lg leading-tight">Rincón <span class="text-rose-500">Go</span></h1>
-                    <p class="text-[10px] text-gray-400 font-medium">Conductores - Rincón de los Sauces</p>
-                </div>
-            </div>
+        function rejectTrip() {
+            clearInterval(tripCountdown);
+            document.getElementById('tripModal').classList.add('hidden');
+        }
 
-            <!-- Estado Online / Offline -->
-            <div class="flex items-center gap-3">
-                <button id="simTripBtn" onclick="triggerIncomingTrip()" class="hidden md:flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-xs px-3 py-2 rounded-xl transition text-rose-400">
-                    <i data-lucide="zap" class="w-4 h-4"></i> Simular Viaje
-                </button>
-                <button id="statusToggleBtn" onclick="toggleOnlineStatus()" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition bg-gray-800 text-gray-400 border-gray-700">
-                    <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-gray-500"></span>
-                    <span id="statusText">Fuera de línea</span>
-                </button>
-            </div>
-        </header>
+        // MODAL COBRAR GANANCIAS
+        function openWithdrawModal() {
+            document.getElementById('withdrawModal').classList.remove('hidden');
+        }
 
-        <!-- MAIN LAYOUT -->
-        <div class="flex-1 flex flex-col md:flex-row relative">
-            
-            <!-- NAVEGACIÓN LATERAL (Desktop) Y BOTTOM (Mobile) -->
-            <nav class="fixed bottom-0 left-0 right-0 md:relative md:w-64 bg-gray-900 border-t md:border-t-0 md:border-r border-gray-800 z-40 flex md:flex-col justify-around md:justify-start p-2 md:p-4 gap-1 md:gap-2">
-                <button onclick="switchTab('map')" id="nav-map" class="nav-btn active flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-rose-500 bg-rose-500/10">
-                    <i data-lucide="map-pin" class="w-5 h-5"></i> <span>Mapa y Viajes</span>
-                </button>
-                <button onclick="switchTab('earnings')" id="nav-earnings" class="nav-btn flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-gray-400 hover:bg-gray-800">
-                    <i data-lucide="wallet" class="w-5 h-5"></i> <span>Ganancias & Cobros</span>
-                </button>
-                <button onclick="switchTab('vehicle')" id="nav-vehicle" class="nav-btn flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-gray-400 hover:bg-gray-800">
-                    <i data-lucide="file-text" class="w-5 h-5"></i> <span>Vehículo & CAT</span>
-                </button>
-                <button onclick="switchTab('profile')" id="nav-profile" class="nav-btn flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-gray-400 hover:bg-gray-800">
-                    <i data-lucide="user" class="w-5 h-5"></i> <span>Mi Cuenta</span>
-                </button>
+        function closeWithdrawModal() {
+            document.getElementById('withdrawModal').classList.add('hidden');
+        }
 
-                <div class="hidden md:block mt-auto pt-4 border-t border-gray-800">
-                    <button onclick="logout()" class="w-full flex items-center gap-3 p-3 text-red-400 hover:bg-red-500/10 rounded-xl text-sm transition">
-                        <i data-lucide="log-out" class="w-5 h-5"></i> Cerrar Sesión
-                    </button>
-                </div>
-            </nav>
+        function submitWithdraw(e) {
+            e.preventDefault();
+            alert('¡Solicitud de retiro enviada! Las ganancias se acreditarán en tu cuenta bancaria/CVU en breve.');
+            closeWithdrawModal();
+        }
 
-            <!-- CONTENIDO PRINCIPAL -->
-            <main class="flex-1 relative bg-gray-950 overflow-y-auto">
-                
-                <!-- VISTA MAPA -->
-                <section id="tab-map" class="tab-content block h-full relative">
-                    <div id="map" class="w-full map-container z-10"></div>
+        // FORMULARIOS GUARDAR
+        function saveVehicleData(e) {
+            e.preventDefault();
+            alert('¡Datos del vehículo y Cédula (CAT) actualizados correctamente!');
+        }
 
-                    <!-- Panel Flotante Inferior Mapa -->
-                    <div class="absolute bottom-4 left-4 right-4 z-20 max-w-md mx-auto">
-                        <div class="bg-gray-900/90 backdrop-blur-md border border-gray-800 rounded-2xl p-4 shadow-xl">
-                            <div class="flex items-center justify-between mb-2">
-                                <div class="flex items-center gap-2">
-                                    <i data-lucide="navigation" class="w-4 h-4 text-rose-500"></i>
-                                    <span class="text-xs font-semibold text-gray-300">Zona Exclusiva</span>
-                                </div>
-                                <span class="text-[11px] bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full font-medium">Rincón de los Sauces</span>
-                            </div>
-                            <p class="text-xs text-gray-400">El mapa está configurado para operar únicamente en la zona urbana e industrial de Rincón de los Sauces.</p>
-                            <button onclick="triggerIncomingTrip()" class="mt-3 w-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
-                                <i data-lucide="play" class="w-4 h-4"></i> Simular Solicitud de Viaje
-                            </button>
-                        </div>
-                    </div>
-                </section>
+        function saveProfileData(e) {
+            e.preventDefault();
+            const name = document.getElementById('profName').value;
+            const email = document.getElementById('profEmail').value;
+            document.getElementById('profileDisplayName').innerText = name;
+            document.getElementById('profileDisplayEmail').innerText = email;
+            alert('¡Perfil de conductor actualizado!');
+        }
 
-                <!-- VISTA GANANCIAS Y COBROS -->
-                <section id="tab-earnings" class="tab-content hidden p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h2 class="text-xl font-bold">Ganancias & Retiros</h2>
-                            <p class="text-xs text-gray-400">Resumen financiero y transferencias directas</p>
-                        </div>
-                        <button onclick="openWithdrawModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition">
-                            <i data-lucide="arrow-up-right" class="w-4 h-4"></i> Cobrar Ganancias
-                        </button>
-                    </div>
-
-                    <!-- Tarjetas de Saldo -->
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
-                            <p class="text-xs text-gray-400">Saldo Disponible</p>
-                            <p id="balanceAmount" class="text-2
+        // GRÁFICO CHART.JS
+        function initChart() {
+            const ctx = document.getElementById('earningsChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+                    datasets: [{
+                        label: 'Ganancias ($)',
+                        data: [12000, 15400, 11000, 18200, 22000, 28000, 18200],
+                        backgroundColor: '#e11d48',
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#9ca3af' } },
+                        y: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af' } }
+                    }
+                }
+            });
+        }
+    </script>
