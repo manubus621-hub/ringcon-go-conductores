@@ -8,17 +8,17 @@
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Leaflet JS & CSS (Mapas) -->
+    <!-- Leaflet JS & CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
-    <!-- Chart.js (Estadísticas y Gráficos) -->
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <!-- FIREBASE SDK Y CONFIGURACIÓN (Con Redirección anti-bloqueo) -->
+    <!-- FIREBASE SDK Y CONFIGURACIÓN -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { 
@@ -31,7 +31,7 @@
             onAuthStateChanged,
             sendPasswordResetEmail
         } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyOKrQcRn5zbW9VDiGBsgdAh6UlboGAP4Ps",
@@ -52,14 +52,22 @@
         // LOGIN CON GOOGLE
         window.loginWithGoogle = function() {
             const provider = new GoogleAuthProvider();
-            signInWithRedirect(auth, provider);
+            signInWithRedirect(auth, provider).catch((error) => {
+                alert("Error al conectar con Google: " + error.message);
+            });
         };
 
         // LOGIN CON EMAIL
         window.loginWithEmail = function(e) {
-            e.preventDefault();
+            if (e) e.preventDefault();
             const email = document.getElementById('loginEmail').value;
             const pass = document.getElementById('loginPass').value;
+
+            if (!email || !pass) {
+                alert("Por favor, completá tu correo y contraseña.");
+                return;
+            }
+
             signInWithEmailAndPassword(auth, email, pass).catch((error) => {
                 alert("Error de autenticación: " + error.message);
             });
@@ -174,7 +182,7 @@
             </div>
 
             <!-- Botón Google -->
-            <button type="button" onclick="loginWithGoogle()" class="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 transition shadow-lg mb-4 cursor-pointer">
+            <button type="button" id="btnGoogle" onclick="window.loginWithGoogle ? window.loginWithGoogle() : alert('Cargando Firebase, reintentá en 2 segundos...')" class="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 transition shadow-lg mb-4 cursor-pointer">
                 <svg class="w-5 h-5" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -191,17 +199,17 @@
             </div>
 
             <!-- Formulario Email -->
-            <form onsubmit="loginWithEmail(event)" class="space-y-4">
+            <form onsubmit="window.loginWithEmail(event)" class="space-y-4">
                 <div>
                     <label class="block text-xs text-gray-400 mb-1">Correo Electrónico</label>
-                    <input type="email" id="loginEmail" required placeholder="tuemail@ejemplo.com" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500">
+                    <input type="email" id="loginEmail" placeholder="tuemail@ejemplo.com" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500">
                 </div>
                 <div>
                     <div class="flex justify-between items-center mb-1">
                         <label class="text-xs text-gray-400">Contraseña</label>
-                        <button type="button" onclick="resetPassword()" class="text-[11px] text-rose-400 hover:underline">¿Olvidaste tu clave?</button>
+                        <button type="button" onclick="window.resetPassword()" class="text-[11px] text-rose-400 hover:underline">¿Olvidaste tu clave?</button>
                     </div>
-                    <input type="password" id="loginPass" required placeholder="••••••••" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500">
+                    <input type="password" id="loginPass" placeholder="••••••••" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500">
                 </div>
                 <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3.5 px-4 rounded-xl transition shadow-lg shadow-rose-600/30 cursor-pointer">
                     Ingresar al Sistema
@@ -297,13 +305,12 @@
                             <p class="font-bold text-white flex items-center gap-1.5"><i data-lucide="user" class="w-4 h-4 text-rose-400"></i> Cliente: <span id="activeClientName" class="font-normal text-gray-300">Mariana Gómez</span></p>
                             <p class="font-bold text-white flex items-center gap-1.5"><i data-lucide="map-pin" class="w-4 h-4 text-emerald-400"></i> Destino: <span id="activeClientAddress" class="font-normal text-gray-300">Calle Chubut 450</span></p>
                         </div>
-                        <!-- Botón de avance de estado -->
                         <button id="orderStepBtn" onclick="advanceOrderStep()" class="w-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-3 rounded-xl transition shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 cursor-pointer">
                             <i data-lucide="check-circle" class="w-4 h-4"></i> <span id="orderStepText">Llegué al Local</span>
                         </button>
                     </div>
 
-                    <!-- PANEL INFERIOR DE COBERTURA Y SIMULACIÓN MÓVIL -->
+                    <!-- PANEL INFERIOR DE COBERTURA -->
                     <div class="absolute bottom-4 left-4 right-4 z-20 max-w-md mx-auto">
                         <div class="bg-gray-900/95 backdrop-blur-md border border-gray-800 rounded-2xl p-4 shadow-xl">
                             <div class="flex items-center justify-between mb-2">
@@ -332,7 +339,7 @@
                         <table class="w-full text-left text-xs">
                             <thead>
                                 <tr class="text-gray-400 border-b border-gray-800">
-                                    <th class="pb-3 font-semibold">Fecha / Hora</th>
+                                    <th class="pb-3 font-semibold">Hora</th>
                                     <th class="pb-3 font-semibold">Comercio</th>
                                     <th class="pb-3 font-semibold">Destino</th>
                                     <th class="pb-3 font-semibold">Ganancia</th>
@@ -360,7 +367,6 @@
                         </button>
                     </div>
 
-                    <!-- Tarjetas de Saldo -->
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
                             <p class="text-xs text-gray-400">Saldo Disponible</p>
@@ -379,7 +385,6 @@
                         </div>
                     </div>
 
-                    <!-- Gráfico -->
                     <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
                         <h3 class="text-xs font-bold text-gray-300 mb-4">Ingresos semanales ($)</h3>
                         <div class="relative w-full h-48">
@@ -403,7 +408,7 @@
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-xs text-gray-400 mb-1">Vehículo / Modelo</label>
-                                    <input type="text" id="vehBrand" placeholder="ej: Honda Wave 110 / Toyota Etios" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
+                                    <input type="text" id="vehBrand" placeholder="ej: Honda Wave 110" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500">
                                 </div>
                                 <div>
                                     <label class="block text-xs text-gray-400 mb-1">Patente / Dominio</label>
@@ -498,11 +503,7 @@
                     <div class="space-y-3">
                         <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
                             <h3 class="text-sm font-bold text-white mb-1">¿Cómo cobro mis ganancias?</h3>
-                            <p class="text-xs text-gray-400">Ingresá a la pestaña "Ganancias", hacé clic en "Retirar Ganancias" y colocá tu CVU o Alias de Mercado Pago. Las transferencias se procesan inmediatamente.</p>
-                        </div>
-                        <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
-                            <h3 class="text-sm font-bold text-white mb-1">¿Cuál es la zona de cobertura?</h3>
-                            <p class="text-xs text-gray-400">La aplicación opera dentro del radio urbano de Rincón de los Sauces y zonas asignadas de yacimiento.</p>
+                            <p class="text-xs text-gray-400">Ingresá a la pestaña "Ganancias", hacé clic en "Retirar Ganancias" y colocá tu CVU o Alias de Mercado Pago.</p>
                         </div>
                         <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
                             <h3 class="text-sm font-bold text-white mb-1">¿Soporte Técnico o Emergencias?</h3>
@@ -590,7 +591,7 @@
         </div>
     </div>
 
-    <!-- LÓGICA JAVASCRIPT DE LA APLICACIÓN -->
+    <!-- LÓGICA JAVASCRIPT -->
     <script>
         lucide.createIcons();
 
@@ -598,7 +599,7 @@
         let map, chart;
         let tripCountdown;
         let driverMarker = null;
-        let orderStep = 0; // 0: Sin pedido, 1: En camino al local, 2: Pedido retirado, 3: Entregado
+        let orderStep = 0;
         let currentTripValue = 3800;
 
         function initApp() {
@@ -754,14 +755,12 @@
                 orderStep = 0;
                 document.getElementById('activeOrderCard').classList.add('hidden');
 
-                // Sumar $3.800 reales al saldo y al acumulado de hoy
                 let balance = Number(localStorage.getItem('rincon_go_balance') || '0') + currentTripValue;
                 let today = Number(localStorage.getItem('rincon_go_today') || '0') + currentTripValue;
 
                 localStorage.setItem('rincon_go_balance', balance);
                 localStorage.setItem('rincon_go_today', today);
 
-                // Guardar en historial
                 saveHistoryItem({
                     date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                     store: "Llomitos Rincón",
