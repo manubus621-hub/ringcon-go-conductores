@@ -160,7 +160,7 @@
                                 </div>
                                 <span class="text-[11px] bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full font-medium">Rincón de los Sauces</span>
                             </div>
-                            <p class="text-xs text-gray-400">El mapa está delimitado estrictamente para operar únicamente en Rincón de los Sauces.</p>
+                            <p class="text-xs text-gray-400">GPS Activo. Operando estrictamente en la zona urbana e industrial.</p>
                             <button onclick="triggerIncomingTrip()" class="mt-3 w-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer">
                                 <i data-lucide="play" class="w-4 h-4"></i> Simular Solicitud de Viaje
                             </button>
@@ -336,11 +336,11 @@
                 </div>
                 <div>
                     <label class="block text-xs text-gray-400 mb-1">CBU / CVU o Alias</label>
-                    <input type="text" required placeholder="ej: rincon.go.mp" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+                    <input type="text" id="withdrawAlias" required placeholder="ej: rincon.go.mp" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
                 </div>
                 <div>
                     <label class="block text-xs text-gray-400 mb-1">Titular de la cuenta</label>
-                    <input type="text" required placeholder="Carlos González" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+                    <input type="text" id="withdrawHolder" required placeholder="Carlos González" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
                 </div>
                 <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-600/20 cursor-pointer">
                     Solicitar Transferencia
@@ -390,42 +390,83 @@
         </div>
     </div>
 
-    <!-- JS LOGIC -->
+    <!-- JS LOGIC WITH PERSISTENCE & GPS -->
     <script>
-        // INIT LUCIDE ICONS
         lucide.createIcons();
 
-        // ESTADO GLOBAL
         let isOnline = false;
         let map, chart;
         let tripCountdown;
+        let driverMarker = null;
 
-        // AUTH FUNCTIONS
+        // VERIFICAR SI YA HABÍA SESIÓN ACTIVA
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedSession = localStorage.getItem('rincon_go_session');
+            if (savedSession === 'active') {
+                document.getElementById('authScreen').style.display = 'none';
+                document.getElementById('appContainer').classList.remove('hidden');
+                loadSavedData();
+                initApp();
+            }
+        });
+
         function loginWithGoogle() {
-            document.getElementById('authScreen').classList.add('hidden');
+            localStorage.setItem('rincon_go_session', 'active');
+            document.getElementById('authScreen').style.display = 'none';
             document.getElementById('appContainer').classList.remove('hidden');
             initApp();
         }
 
         function loginWithEmail(e) {
             e.preventDefault();
-            document.getElementById('authScreen').classList.add('hidden');
+            localStorage.setItem('rincon_go_session', 'active');
+            document.getElementById('authScreen').style.display = 'none';
             document.getElementById('appContainer').classList.remove('hidden');
             initApp();
         }
 
         function logout() {
+            localStorage.removeItem('rincon_go_session');
             document.getElementById('appContainer').classList.add('hidden');
-            document.getElementById('authScreen').classList.remove('hidden');
+            document.getElementById('authScreen').style.display = 'flex';
         }
 
-        // INICIALIZACIÓN APP
         function initApp() {
             initMap();
             initChart();
+            loadSavedData();
         }
 
-        // LEAFLET MAP ESTRICTO EN RINCÓN DE LOS SAUCES
+        // CARGAR DATOS GUARDADOS EN LOCALSTORAGE
+        function loadSavedData() {
+            const savedProfile = JSON.parse(localStorage.getItem('rincon_go_profile') || '{}');
+            if (savedProfile.name) {
+                document.getElementById('profName').value = savedProfile.name;
+                document.getElementById('profPhone').value = savedProfile.phone || '';
+                document.getElementById('profEmail').value = savedProfile.email || '';
+                document.getElementById('profileDisplayName').innerText = savedProfile.name;
+                document.getElementById('profileDisplayEmail').innerText = savedProfile.email || 'conductor@rincongo.com';
+                document.getElementById('withdrawHolder').value = savedProfile.name;
+            }
+
+            const savedVehicle = JSON.parse(localStorage.getItem('rincon_go_vehicle') || '{}');
+            if (savedVehicle.brand) {
+                document.getElementById('vehBrand').value = savedVehicle.brand;
+                document.getElementById('vehPlate').value = savedVehicle.plate || '';
+                document.getElementById('vehYear').value = savedVehicle.year || '';
+                document.getElementById('vehColor').value = savedVehicle.color || '';
+                document.getElementById('catNumber').value = savedVehicle.cat || '';
+            }
+
+            const savedBalance = localStorage.getItem('rincon_go_balance');
+            if (savedBalance) {
+                document.getElementById('balanceAmount').innerText = `$ ${Number(savedBalance).toLocaleString('es-AR')}`;
+                document.getElementById('withdrawAmount').value = savedBalance;
+                document.getElementById('withdrawAmount').max = savedBalance;
+            }
+        }
+
+        // MAPA CON GEOLOCALIZACIÓN REAL Y LÍMITES DE RINCÓN DE LOS SAUCES
         function initMap() {
             if (map) return;
 
@@ -456,7 +497,23 @@
                 iconAnchor: [16, 16]
             });
 
-            L.marker(rinconCenter, { icon: driverIcon }).addTo(map).bindPopup('<b>Tu ubicación</b><br>Rincón de los Sauces').openPopup();
+            driverMarker = L.marker(rinconCenter, { icon: driverIcon }).addTo(map).bindPopup('<b>Tu ubicación GPS</b><br>Rincón de los Sauces').openPopup();
+
+            // Activar GPS Real del dispositivo si está disponible
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(position => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    // Verificar que esté dentro de los límites de Rincón
+                    if (lat >= -37.420 && lat <= -37.350 && lng >= -68.970 && lng <= -68.880) {
+                        const newLatLng = [lat, lng];
+                        driverMarker.setLatLng(newLatLng);
+                        if (isOnline) map.panTo(newLatLng);
+                    }
+                }, error => {
+                    console.log("GPS no disponible, usando centro predeterminado.");
+                }, { enableHighAccuracy: true });
+            }
 
             const spots = [
                 { name: "Plaza San Martín", lat: -37.388, lng: -68.928 },
@@ -475,7 +532,6 @@
             });
         }
 
-        // CAMBIO DE TAB
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
             document.querySelectorAll('.nav-btn').forEach(el => {
@@ -493,7 +549,6 @@
             }
         }
 
-        // TOGGLE ONLINE STATUS
         function toggleOnlineStatus() {
             isOnline = !isOnline;
             const btn = document.getElementById('statusToggleBtn');
@@ -511,7 +566,6 @@
             }
         }
 
-        // SIMULACIÓN SOLICITUD VIAJE
         function triggerIncomingTrip() {
             const modal = document.getElementById('tripModal');
             const timerEl = document.getElementById('tripTimer');
@@ -542,7 +596,6 @@
             document.getElementById('tripModal').classList.add('hidden');
         }
 
-        // MODAL COBRAR GANANCIAS
         function openWithdrawModal() {
             document.getElementById('withdrawModal').classList.remove('hidden');
         }
@@ -553,26 +606,38 @@
 
         function submitWithdraw(e) {
             e.preventDefault();
-            alert('¡Solicitud de retiro enviada! Las ganancias se acreditarán en tu cuenta bancaria/CVU en breve.');
+            const alias = document.getElementById('withdrawAlias').value;
+            alert(`¡Transferencia solicitada con éxito a la cuenta / alias: ${alias}!\nLos fondos se acreditarán en minutos.`);
+            localStorage.setItem('rincon_go_balance', '0');
+            loadSavedData();
             closeWithdrawModal();
         }
 
-        // FORMULARIOS GUARDAR
         function saveVehicleData(e) {
             e.preventDefault();
-            alert('¡Datos del vehículo y Cédula (CAT) actualizados correctamente!');
+            const vehicle = {
+                brand: document.getElementById('vehBrand').value,
+                plate: document.getElementById('vehPlate').value,
+                year: document.getElementById('vehYear').value,
+                color: document.getElementById('vehColor').value,
+                cat: document.getElementById('catNumber').value
+            };
+            localStorage.setItem('rincon_go_vehicle', JSON.stringify(vehicle));
+            alert('¡Datos del vehículo y Cédula (CAT) guardados correctamente!');
         }
 
         function saveProfileData(e) {
             e.preventDefault();
-            const name = document.getElementById('profName').value;
-            const email = document.getElementById('profEmail').value;
-            document.getElementById('profileDisplayName').innerText = name;
-            document.getElementById('profileDisplayEmail').innerText = email;
-            alert('¡Perfil de conductor actualizado!');
+            const profile = {
+                name: document.getElementById('profName').value,
+                phone: document.getElementById('profPhone').value,
+                email: document.getElementById('profEmail').value
+            };
+            localStorage.setItem('rincon_go_profile', JSON.stringify(profile));
+            loadSavedData();
+            alert('¡Perfil de conductor actualizado y guardado!');
         }
 
-        // GRÁFICO CHART.JS
         function initChart() {
             const ctx = document.getElementById('earningsChart').getContext('2d');
             chart = new Chart(ctx, {
