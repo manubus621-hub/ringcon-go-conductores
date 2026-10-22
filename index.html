@@ -1,699 +1,187 @@
 <!DOCTYPE html>
-<html lang="es" class="h-full bg-slate-950 text-slate-100">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rincón Go - Conductores (Rincón de los Sauces)</title>
-    <!-- Tailwind CSS CDN -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rincón Go - Conductores</title>
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Leaflet JS & CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
     <script>
         tailwind.config = {
-            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
-                        go: {
-                            50: '#f0fdfa',
-                            100: '#ccfbf1',
-                            500: '#14b8a6',
-                            600: '#0d9488',
-                            700: '#0f766e',
-                            accent: '#f59e0b' // Dorado/Ámbar
+                        brand: {
+                            50: '#fff1f2',
+                            100: '#ffe4e6',
+                            500: '#e11d48',
+                            600: '#e11d48',
+                            700: '#be123c',
+                            800: '#9f1239',
                         }
                     }
                 }
             }
         }
     </script>
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Leaflet.js (Mapa Real para Rincón de los Sauces) -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        #leaflet-map { height: 100%; width: 100%; z-index: 1; }
-        .leaflet-tile { filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7); }
-        .leaflet-container { background: #020617 !important; }
+        .map-container { height: calc(100vh - 64px - 72px); }
+        @media (min-width: 768px) {
+            .map-container { height: calc(100vh - 64px); }
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
-<body class="h-full font-sans antialiased selection:bg-go-500 selection:text-slate-950 flex flex-col md:flex-row overflow-hidden bg-slate-950">
+<body class="bg-gray-900 text-gray-100 font-sans antialiased overflow-x-hidden selection:bg-rose-500 selection:text-white">
 
-    <!-- CONTENEDOR DE TOAST NOTIFICACIONES -->
-    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+    <!-- PANTALLA DE LOGIN / REGISTRO -->
+    <div id="authScreen" class="fixed inset-0 z-[2000] bg-gray-950 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative overflow-hidden">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-rose-600/20 border border-rose-500/30 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-rose-600/10">
+                    <i data-lucide="car" class="w-9 h-9 text-rose-500"></i>
+                </div>
+                <h1 class="text-3xl font-black tracking-tight text-white">Rincón <span class="text-rose-500">Go</span></h1>
+                <p class="text-xs text-rose-400 font-semibold tracking-wider uppercase mt-0.5">App Conductores - Rincón de los Sauces</p>
+            </div>
 
-    <!-- SIDEBAR / NAVEGACIÓN DESKTOP -->
-    <aside class="hidden md:flex md:w-64 bg-slate-900 border-r border-slate-800 flex-col justify-between p-4 z-20 shrink-0">
-        <div>
-            <!-- BRAND LOGO -->
-            <div class="flex items-center gap-3 px-2 py-4 border-b border-slate-800 mb-6">
-                <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-go-600 to-go-accent flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-go-500/20">
-                    <i class="fa-solid fa-car"></i>
+            <!-- Botón Google -->
+            <button onclick="loginWithGoogle()" class="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 transition shadow-lg mb-5">
+                <svg class="w-5 h-5" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                Iniciar sesión con Google
+            </button>
+
+            <div class="relative flex py-2 items-center mb-5">
+                <div class="flex-grow border-t border-gray-800"></div>
+                <span class="flex-shrink mx-4 text-xs text-gray-500 uppercase font-medium">o con correo</span>
+                <div class="flex-grow border-t border-gray-800"></div>
+            </div>
+
+            <!-- Formulario Email -->
+            <form onsubmit="loginWithEmail(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Correo Electrónico</label>
+                    <input type="email" id="loginEmail" required placeholder="conductor@rincongo.com" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500">
                 </div>
                 <div>
-                    <h1 class="font-extrabold text-lg leading-tight tracking-wider text-white">RINCÓN <span class="text-go-500">GO</span></h1>
-                    <span class="text-[10px] text-amber-400 font-semibold uppercase tracking-widest"><i class="fa-solid fa-location-dot mr-1"></i>Rincón de los Sauces</span>
+                    <label class="block text-xs text-gray-400 mb-1">Contraseña</label>
+                    <input type="password" id="loginPass" required placeholder="••••••••" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500">
                 </div>
-            </div>
-
-            <!-- MENU LINKS -->
-            <nav class="space-y-1.5">
-                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 bg-go-600 text-slate-950 font-bold shadow-lg shadow-go-600/20">
-                    <i class="fa-solid fa-gauge-high w-5 text-center text-lg"></i>
-                    <span>Panel / Mapa</span>
+                <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3.5 px-4 rounded-xl transition shadow-lg shadow-rose-600/30">
+                    Ingresar a Rincón Go
                 </button>
-                <button onclick="switchTab('trips')" id="nav-trips" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 text-slate-400 hover:text-white hover:bg-slate-800">
-                    <i class="fa-solid fa-route w-5 text-center text-lg"></i>
-                    <span>Viaje Activo</span>
-                    <span id="active-badge" class="hidden ml-auto px-2 py-0.5 text-[10px] bg-go-500 text-slate-950 rounded-full font-bold">1</span>
-                </button>
-                <button onclick="switchTab('earnings')" id="nav-earnings" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 text-slate-400 hover:text-white hover:bg-slate-800">
-                    <i class="fa-solid fa-wallet w-5 text-center text-lg"></i>
-                    <span>Ganancias</span>
-                </button>
-                <button onclick="switchTab('history')" id="nav-history" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 text-slate-400 hover:text-white hover:bg-slate-800">
-                    <i class="fa-solid fa-clock-rotate-left w-5 text-center text-lg"></i>
-                    <span>Historial</span>
-                </button>
-                <button onclick="switchTab('profile')" id="nav-profile" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 text-slate-400 hover:text-white hover:bg-slate-800">
-                    <i class="fa-solid fa-id-card w-5 text-center text-lg"></i>
-                    <span>Perfil y Vehículo</span>
-                </button>
-                <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 text-slate-400 hover:text-white hover:bg-slate-800">
-                    <i class="fa-solid fa-sliders w-5 text-center text-lg"></i>
-                    <span>Ajustes</span>
-                </button>
-            </nav>
-        </div>
-
-        <!-- DRIVER PROFILE MINI CARD -->
-        <div class="bg-slate-950/80 p-3 rounded-2xl border border-slate-800 flex items-center gap-3">
-            <div class="relative">
-                <div class="w-10 h-10 rounded-full bg-slate-800 border-2 border-go-500 flex items-center justify-center font-bold text-go-500">
-                    <i class="fa-solid fa-user-gear"></i>
-                </div>
-                <span class="absolute bottom-0 right-0 w-3 h-3 bg-go-500 border-2 border-slate-900 rounded-full"></span>
-            </div>
-            <div class="overflow-hidden">
-                <p class="text-xs font-bold truncate text-white">Carlos Gutiérrez</p>
-                <p class="text-[11px] text-amber-400 flex items-center gap-1 font-semibold">
-                    <i class="fa-solid fa-star"></i> 4.96 <span class="text-slate-500 font-normal">(420 viajes)</span>
-                </p>
-            </div>
-        </div>
-    </aside>
-
-    <!-- AREA PRINCIPAL -->
-    <main class="flex-1 flex flex-col h-full overflow-hidden relative">
-
-        <!-- HEADER SUPERIOR -->
-        <header class="h-16 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 flex items-center justify-between shrink-0 z-10">
-            <div class="flex items-center gap-2 md:hidden">
-                <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-go-600 to-go-accent flex items-center justify-center text-slate-950 font-black">
-                    <i class="fa-solid fa-car text-sm"></i>
-                </div>
-                <span class="font-extrabold text-base tracking-wider text-white">RINCÓN <span class="text-go-500">GO</span></span>
-            </div>
-
-            <div class="hidden md:flex items-center gap-2">
-                <span class="text-xs font-semibold px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
-                    <i class="fa-solid fa-map-pin text-go-500 mr-1.5"></i>Rincón de los Sauces, Neuquén
-                </span>
-            </div>
-
-            <!-- SWITCH ONLINE / OFFLINE EN HEADER -->
-            <div class="flex items-center gap-3">
-                <span id="status-label" class="text-xs font-bold uppercase tracking-wider text-go-500 hidden sm:inline">EN LÍNEA</span>
-                <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" id="online-toggle" class="sr-only peer" checked onchange="toggleOnlineStatus(this.checked)">
-                    <div class="w-14 h-7 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-go-600"></div>
-                </label>
-            </div>
-        </header>
-
-        <!-- CONTENEDOR CON PESTAÑAS -->
-        <div class="flex-1 overflow-y-auto p-4 md:p-6 no-scrollbar relative">
-
-            <!-- 1. DASHBOARD & MAPA DE RINCÓN DE LOS SAUCES -->
-            <section id="tab-dashboard" class="tab-content space-y-6">
-                <!-- RESUMEN RÁPIDO DE HOY -->
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center gap-3">
-                        <div class="p-3 bg-go-500/10 text-go-500 rounded-xl">
-                            <i class="fa-solid fa-money-bill-wave text-xl"></i>
-                        </div>
-                        <div>
-                            <p class="text-[11px] text-slate-400 font-medium">Hoy Ganado</p>
-                            <h3 class="text-lg font-extrabold text-white" id="dash-earnings">$ 38.500 ARS</h3>
-                        </div>
-                    </div>
-                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center gap-3">
-                        <div class="p-3 bg-amber-500/10 text-amber-400 rounded-xl">
-                            <i class="fa-solid fa-car-side text-xl"></i>
-                        </div>
-                        <div>
-                            <p class="text-[11px] text-slate-400 font-medium">Viajes Completados</p>
-                            <h3 class="text-lg font-extrabold text-white" id="dash-trips">7 Viajes</h3>
-                        </div>
-                    </div>
-                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center gap-3">
-                        <div class="p-3 bg-blue-500/10 text-blue-400 rounded-xl">
-                            <i class="fa-solid fa-gas-pump text-xl"></i>
-                        </div>
-                        <div>
-                            <p class="text-[11px] text-slate-400 font-medium">Yacimientos / Petrolera</p>
-                            <h3 class="text-lg font-extrabold text-amber-400">4 Viajes</h3>
-                        </div>
-                    </div>
-                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center gap-3">
-                        <div class="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl">
-                            <i class="fa-solid fa-shield-check text-xl"></i>
-                        </div>
-                        <div>
-                            <p class="text-[11px] text-slate-400 font-medium">Aceptación</p>
-                            <h3 class="text-lg font-extrabold text-white">98%</h3>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- CONTENEDOR DEL MAPA REAL LEAFLET DE RINCÓN DE LOS SAUCES -->
-                <div class="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl space-y-0">
-                    <div class="p-4 bg-slate-900 border-b border-slate-800 flex flex-wrap justify-between items-center gap-2">
-                        <div>
-                            <h2 class="font-bold text-white text-sm flex items-center gap-2">
-                                <i class="fa-solid fa-map text-go-500"></i>
-                                Mapa Urbano y Petrolero (Rincón de los Sauces)
-                            </h2>
-                            <p class="text-[11px] text-slate-400">Monitoreo de pedidos en tiempo real dentro del municipio y yacimientos cercanos.</p>
-                        </div>
-                        <button onclick="triggerSimulatedTrip()" class="px-3.5 py-2 bg-go-600 hover:bg-go-500 font-bold text-slate-950 rounded-xl transition-all shadow-md text-xs flex items-center gap-2">
-                            <i class="fa-solid fa-bolt"></i> Simular Pedido Local
-                        </button>
-                    </div>
-
-                    <!-- LEAFLET CANVAS MAP -->
-                    <div class="relative h-96 w-full bg-slate-950">
-                        <div id="leaflet-map"></div>
-                    </div>
-                </div>
-
-                <!-- UBICACIONES DESTACADAS EN RINCÓN -->
-                <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-3">
-                    <h3 class="font-bold text-white text-xs uppercase tracking-wider flex items-center gap-2">
-                        <i class="fa-solid fa-location-crosshairs text-go-500"></i> Puntos Frecuentes de Alta Demanda
-                    </h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                        <div class="p-3 bg-slate-950/60 rounded-2xl border border-slate-800">
-                            <p class="text-xs font-bold text-white">Puesto Hernández / YPF</p>
-                            <p class="text-[10px] text-amber-400">Tarifa Yacimiento Especial (+30%)</p>
-                        </div>
-                        <div class="p-3 bg-slate-950/60 rounded-2xl border border-slate-800">
-                            <p class="text-xs font-bold text-white">Terminal de Ómnibus</p>
-                            <p class="text-[10px] text-slate-400">Llegada de colectivos interurbanos</p>
-                        </div>
-                        <div class="p-3 bg-slate-950/60 rounded-2xl border border-slate-800">
-                            <p class="text-xs font-bold text-white">Plaza San Martín / Centro</p>
-                            <p class="text-[10px] text-slate-400">Zona comercial y municipal</p>
-                        </div>
-                        <div class="p-3 bg-slate-950/60 rounded-2xl border border-slate-800">
-                            <p class="text-xs font-bold text-white">Hospital Dren Challen</p>
-                            <p class="text-[10px] text-slate-400">Servicios urbanos rápidos</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 2. SERVICIO / VIAJE EN CURSO -->
-            <section id="tab-trips" class="tab-content hidden space-y-6">
-                <!-- SIN VIAJE -->
-                <div id="no-trip-view" class="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center space-y-4">
-                    <div class="w-16 h-16 bg-slate-800 text-slate-500 rounded-full flex items-center justify-center mx-auto text-2xl">
-                        <i class="fa-solid fa-route"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-bold text-white">No tienes viajes activos</h3>
-                        <p class="text-xs text-slate-400 max-w-sm mx-auto mt-1">Mantente en línea cerca del centro o la zona industrial para recibir solicitudes.</p>
-                    </div>
-                    <button onclick="triggerSimulatedTrip()" class="px-5 py-2.5 bg-go-600 hover:bg-go-500 font-bold text-slate-950 rounded-2xl text-xs transition-all shadow-lg shadow-go-600/20">
-                        <i class="fa-solid fa-radar mr-1"></i> Generar Solicitud
-                    </button>
-                </div>
-
-                <!-- VIAJE ACTIVO -->
-                <div id="active-trip-view" class="hidden space-y-6">
-                    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 relative">
-                        <!-- ENCABEZADO -->
-                        <div class="flex flex-wrap justify-between items-center gap-4 pb-6 border-b border-slate-800">
-                            <div>
-                                <span id="trip-status-badge" class="px-3 py-1 bg-go-500/20 text-go-500 border border-go-500/30 text-[11px] font-bold rounded-full uppercase tracking-wider">
-                                    En camino a buscar al pasajero
-                                </span>
-                                <h3 class="text-2xl font-black text-white mt-2" id="passenger-name">María S.</h3>
-                                <p class="text-xs text-amber-400 font-semibold mt-0.5"><i class="fa-solid fa-star"></i> 4.92 • Pasajera Habitual Rincón</p>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-[11px] text-slate-400 font-medium">Tarifa del Servicio</p>
-                                <p class="text-2xl font-black text-go-500" id="trip-fare">$ 4.500 ARS</p>
-                                <span class="text-[10px] bg-slate-800 text-amber-400 px-2 py-0.5 rounded font-bold" id="trip-payment-method">Pago: Efectivo</span>
-                            </div>
-                        </div>
-
-                        <!-- ORÍGEN Y DESTINO -->
-                        <div class="py-6 border-b border-slate-800 space-y-4">
-                            <div class="flex items-start gap-4">
-                                <div class="flex flex-col items-center">
-                                    <div class="w-3.5 h-3.5 rounded-full bg-go-500"></div>
-                                    <div class="w-0.5 h-10 bg-slate-800"></div>
-                                    <div class="w-3.5 h-3.5 rounded-full bg-rose-500"></div>
-                                </div>
-                                <div class="flex-1 space-y-4">
-                                    <div>
-                                        <p class="text-[10px] font-bold text-slate-400 uppercase">Origen</p>
-                                        <p class="font-bold text-white text-sm" id="trip-origin">Barrio Centro - Calle Misiones y Jujuy</p>
-                                    </div>
-                                    <div>
-                                        <p class="text-[10px] font-bold text-slate-400 uppercase">Destino</p>
-                                        <p class="font-bold text-white text-sm" id="trip-dest">Yacimiento Puesto Hernández (YPF)</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- OPCIONES DE CONTACTO -->
-                        <div class="pt-6 flex gap-3">
-                            <button onclick="showToast('Mensaje: \'Hola, voy en un Toyota Etios blanco en camino\'', 'info')" class="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl text-xs transition-all flex items-center justify-center gap-2">
-                                <i class="fa-solid fa-comment text-go-500"></i> Enviar Mensaje
-                            </button>
-                            <button onclick="showToast('Llamando a la pasajera...', 'info')" class="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl text-xs transition-all flex items-center justify-center gap-2">
-                                <i class="fa-solid fa-phone text-go-500"></i> Llamar
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- BOTÓN CONTROLADOR DE FASES -->
-                    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center">
-                        <button id="btn-advance-phase" onclick="advanceTripPhase()" class="w-full py-4 bg-go-600 hover:bg-go-500 text-slate-950 font-black rounded-2xl transition-all shadow-xl shadow-go-600/20 text-sm tracking-wider uppercase">
-                            <i class="fa-solid fa-location-arrow mr-2"></i> Llegué al Origen
-                        </button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 3. GANANCIAS Y ESTADÍSTICAS -->
-            <section id="tab-earnings" class="tab-content hidden space-y-6">
-                <!-- RESUMEN EN PESOS ARGENTINOS -->
-                <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-6">
-                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Saldo Acumulado Retirable</p>
-                    <h2 class="text-3xl font-black text-white mt-1" id="total-balance">$ 168.200 ARS</h2>
-                    <p class="text-xs text-go-500 font-semibold mt-1"><i class="fa-solid fa-check-circle mr-1"></i> Transferencia inmediata habilitada por CBU/Alias</p>
-                </div>
-
-                <!-- GRÁFICO DE GANANCIAS -->
-                <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
-                    <h3 class="font-bold text-white text-sm flex items-center gap-2">
-                        <i class="fa-solid fa-chart-line text-go-500"></i> Rendimiento Semanal (Rincón de los Sauces)
-                    </h3>
-                    <div class="h-60 w-full">
-                        <canvas id="weekly-chart"></canvas>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 4. HISTORIAL DE VIAJES -->
-            <section id="tab-history" class="tab-content hidden space-y-4">
-                <h3 class="font-bold text-white text-sm flex items-center gap-2">
-                    <i class="fa-solid fa-clock-rotate-left text-go-500"></i> Historial Reciente
-                </h3>
-                <div class="space-y-3" id="history-container">
-                    <!-- Item 1 -->
-                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex justify-between items-center">
-                        <div>
-                            <p class="font-bold text-white text-xs">Terminal → Barrio Chihuido</p>
-                            <p class="text-[10px] text-slate-400">Hoy 11:30 HS • Efectivo</p>
-                        </div>
-                        <span class="font-black text-go-500 text-sm">$ 3.200 ARS</span>
-                    </div>
-                    <!-- Item 2 -->
-                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex justify-between items-center">
-                        <div>
-                            <p class="font-bold text-white text-xs">Plaza San Martín → Yacimiento Puesto Hernández</p>
-                            <p class="text-[10px] text-slate-400">Ayer 07:15 HS • Transferencia</p>
-                        </div>
-                        <span class="font-black text-go-500 text-sm">$ 6.800 ARS</span>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 5. PERFIL DEL CONDUCTOR -->
-            <section id="tab-profile" class="tab-content hidden space-y-6">
-                <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col sm:flex-row items-center gap-6">
-                    <div class="w-20 h-20 rounded-full bg-go-600/20 border-2 border-go-500 flex items-center justify-center text-3xl text-go-500">
-                        <i class="fa-solid fa-user-tie"></i>
-                    </div>
-                    <div class="space-y-1 text-center sm:text-left">
-                        <h3 class="text-xl font-bold text-white">Carlos Gutiérrez</h3>
-                        <p class="text-xs text-slate-400">Conductor Autorizado - Rincón de los Sauces</p>
-                        <p class="text-xs text-amber-400 font-bold"><i class="fa-solid fa-star"></i> 4.96 • Licencia Nacional Vigente</p>
-                    </div>
-                </div>
-
-                <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
-                    <h4 class="font-bold text-white text-xs uppercase tracking-wider">Datos del Vehículo</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div class="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800">
-                            <p class="text-[10px] text-slate-400">Modelo</p>
-                            <p class="text-xs font-bold text-white">Toyota Etios 1.5</p>
-                        </div>
-                        <div class="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800">
-                            <p class="text-[10px] text-slate-400">Patente</p>
-                            <p class="text-xs font-bold text-amber-400 font-mono">AD 394 LK</p>
-                        </div>
-                        <div class="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800">
-                            <p class="text-[10px] text-slate-400">Habilitación</p>
-                            <p class="text-xs font-bold text-go-500">Municipal Rincón</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 6. AJUSTES -->
-            <section id="tab-settings" class="tab-content hidden space-y-6">
-                <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
-                    <h3 class="font-bold text-white text-sm flex items-center gap-2">
-                        <i class="fa-solid fa-sliders text-go-500"></i> Preferencias de Viajes
-                    </h3>
-                    <div class="space-y-4 text-xs">
-                        <div>
-                            <label class="font-bold text-slate-300 block mb-1">Radio de Búsqueda (km)</label>
-                            <select class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white">
-                                <option>5 km (Zona Urbana Rincón)</option>
-                                <option selected>15 km (Incluye Yacimientos Cercanos)</option>
-                                <option>25 km (Zona Ampliada)</option>
-                            </select>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="font-bold text-slate-300">Alertas de Sonido de Solicitud</span>
-                            <input type="checkbox" checked class="accent-go-600">
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-        </div>
-
-        <!-- BOTTOM NAV MÓVIL -->
-        <nav class="md:hidden h-16 bg-slate-900/95 backdrop-blur border-t border-slate-800 grid grid-cols-5 items-center shrink-0 z-20">
-            <button onclick="switchTab('dashboard')" id="bnav-dashboard" class="bnav-btn flex flex-col items-center justify-center text-go-500">
-                <i class="fa-solid fa-map text-base"></i>
-                <span class="text-[9px] font-semibold mt-0.5">Mapa</span>
-            </button>
-            <button onclick="switchTab('trips')" id="bnav-trips" class="bnav-btn flex flex-col items-center justify-center text-slate-400">
-                <i class="fa-solid fa-route text-base"></i>
-                <span class="text-[9px] font-semibold mt-0.5">Viaje</span>
-            </button>
-            <button onclick="switchTab('earnings')" id="bnav-earnings" class="bnav-btn flex flex-col items-center justify-center text-slate-400">
-                <i class="fa-solid fa-wallet text-base"></i>
-                <span class="text-[9px] font-semibold mt-0.5">Ganancias</span>
-            </button>
-            <button onclick="switchTab('history')" id="bnav-history" class="bnav-btn flex flex-col items-center justify-center text-slate-400">
-                <i class="fa-solid fa-clock-rotate-left text-base"></i>
-                <span class="text-[9px] font-semibold mt-0.5">Historial</span>
-            </button>
-            <button onclick="switchTab('profile')" id="bnav-profile" class="bnav-btn flex flex-col items-center justify-center text-slate-400">
-                <i class="fa-solid fa-user text-base"></i>
-                <span class="text-[9px] font-semibold mt-0.5">Perfil</span>
-            </button>
-        </nav>
-    </main>
-
-    <!-- MODAL SOLICITUD ENTRANTE -->
-    <div id="incoming-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-900 border border-go-500/50 rounded-3xl w-full max-w-md p-6 space-y-5 shadow-2xl">
-            <div class="flex justify-between items-center">
-                <span class="px-3 py-1 bg-go-500/20 text-go-500 border border-go-500/30 text-[10px] font-extrabold rounded-full uppercase">
-                    ¡NUEVA SOLICITUD RINCÓN GO!
-                </span>
-                <span id="modal-timer" class="text-xl font-black text-amber-400">15s</span>
-            </div>
-
-            <div class="text-center space-y-1">
-                <p class="text-[11px] text-slate-400">Tarifa Estimada</p>
-                <h3 class="text-3xl font-black text-go-500" id="inc-fare">$ 4.500 ARS</h3>
-                <span class="text-[10px] text-amber-400 font-bold" id="inc-payment">Efectivo</span>
-            </div>
-
-            <div class="space-y-3 bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 text-xs">
-                <div>
-                    <p class="text-[10px] text-slate-400 font-bold uppercase">Pasajero/a</p>
-                    <p class="font-bold text-white" id="inc-passenger">María S.</p>
-                </div>
-                <div>
-                    <p class="text-[10px] text-slate-400 font-bold uppercase">Origen</p>
-                    <p class="font-bold text-white" id="inc-origin">Barrio Centro - Misiones y Jujuy</p>
-                </div>
-                <div>
-                    <p class="text-[10px] text-slate-400 font-bold uppercase">Destino</p>
-                    <p class="font-bold text-white" id="inc-dest">Yacimiento Puesto Hernández</p>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-3">
-                <button onclick="rejectTrip()" class="py-3 bg-slate-800 text-slate-300 font-bold rounded-2xl text-xs">
-                    Rechazar
-                </button>
-                <button onclick="acceptTrip()" class="py-3 bg-go-600 hover:bg-go-500 text-slate-950 font-black rounded-2xl text-xs shadow-lg shadow-go-600/30">
-                    ¡ACEPTAR VIAJE!
-                </button>
-            </div>
+            </form>
         </div>
     </div>
 
-    <!-- JAVASCRIPT LOGIC -->
-    <script>
-        const state = {
-            isOnline: true,
-            currentTab: 'dashboard',
-            hasActiveTrip: false,
-            tripPhase: 0,
-            timer: 15,
-            timerInterval: null,
-            map: null,
-            routePolyline: null,
-            driverMarker: null,
-            earningsToday: 38500,
-            tripsToday: 7
-        };
+    <!-- APP CONTAINER -->
+    <div id="appContainer" class="hidden min-h-screen flex flex-col pb-20 md:pb-0">
+        <!-- HEADER TOP BAR -->
+        <header class="bg-gray-900 border-b border-gray-800 h-16 px-4 flex items-center justify-between sticky top-0 z-50">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-rose-600/20">
+                    <i data-lucide="car" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">Rincón <span class="text-rose-500">Go</span></h1>
+                    <p class="text-[10px] text-gray-400 font-medium">Conductores - Rincón de los Sauces</p>
+                </div>
+            </div>
 
-        const localTripsData = [
-            { passenger: "María S.", origin: "Barrio Centro - Misiones y Jujuy", dest: "Yacimiento Puesto Hernández (YPF)", fare: 4500, payment: "Efectivo", originCoords: [-37.387, -68.927], destCoords: [-37.360, -68.960] },
-            { passenger: "Roberto P.", origin: "Terminal de Ómnibus Rincón", dest: "Barrio Chihuido - Manzana 12", fare: 3200, payment: "Transferencia", originCoords: [-37.391, -68.920], destCoords: [-37.380, -68.935] },
-            { passenger: "Gonzalo M.", origin: "Plaza San Martín", dest: "Hospital Dren Challen", fare: 2800, payment: "Efectivo", originCoords: [-37.386, -68.925], destCoords: [-37.389, -68.918] }
-        ];
+            <!-- Estado Online / Offline -->
+            <div class="flex items-center gap-3">
+                <button id="simTripBtn" onclick="triggerIncomingTrip()" class="hidden md:flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-xs px-3 py-2 rounded-xl transition text-rose-400">
+                    <i data-lucide="zap" class="w-4 h-4"></i> Simular Viaje
+                </button>
+                <button id="statusToggleBtn" onclick="toggleOnlineStatus()" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition bg-gray-800 text-gray-400 border-gray-700">
+                    <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-gray-500"></span>
+                    <span id="statusText">Fuera de línea</span>
+                </button>
+            </div>
+        </header>
 
-        let currentTripData = localTripsData[0];
+        <!-- MAIN LAYOUT -->
+        <div class="flex-1 flex flex-col md:flex-row relative">
+            
+            <!-- NAVEGACIÓN LATERAL (Desktop) Y BOTTOM (Mobile) -->
+            <nav class="fixed bottom-0 left-0 right-0 md:relative md:w-64 bg-gray-900 border-t md:border-t-0 md:border-r border-gray-800 z-40 flex md:flex-col justify-around md:justify-start p-2 md:p-4 gap-1 md:gap-2">
+                <button onclick="switchTab('map')" id="nav-map" class="nav-btn active flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-rose-500 bg-rose-500/10">
+                    <i data-lucide="map-pin" class="w-5 h-5"></i> <span>Mapa y Viajes</span>
+                </button>
+                <button onclick="switchTab('earnings')" id="nav-earnings" class="nav-btn flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-gray-400 hover:bg-gray-800">
+                    <i data-lucide="wallet" class="w-5 h-5"></i> <span>Ganancias & Cobros</span>
+                </button>
+                <button onclick="switchTab('vehicle')" id="nav-vehicle" class="nav-btn flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-gray-400 hover:bg-gray-800">
+                    <i data-lucide="file-text" class="w-5 h-5"></i> <span>Vehículo & CAT</span>
+                </button>
+                <button onclick="switchTab('profile')" id="nav-profile" class="nav-btn flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:p-3 rounded-xl text-xs md:text-sm font-medium transition text-gray-400 hover:bg-gray-800">
+                    <i data-lucide="user" class="w-5 h-5"></i> <span>Mi Cuenta</span>
+                </button>
 
-        window.addEventListener('DOMContentLoaded', () => {
-            initLeafletMap();
-            initChart();
-        });
+                <div class="hidden md:block mt-auto pt-4 border-t border-gray-800">
+                    <button onclick="logout()" class="w-full flex items-center gap-3 p-3 text-red-400 hover:bg-red-500/10 rounded-xl text-sm transition">
+                        <i data-lucide="log-out" class="w-5 h-5"></i> Cerrar Sesión
+                    </button>
+                </div>
+            </nav>
 
-        function switchTab(tabId) {
-            state.currentTab = tabId;
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
-            document.getElementById(`tab-${tabId}`)?.classList.remove('hidden');
+            <!-- CONTENIDO PRINCIPAL -->
+            <main class="flex-1 relative bg-gray-950 overflow-y-auto">
+                
+                <!-- VISTA MAPA -->
+                <section id="tab-map" class="tab-content block h-full relative">
+                    <div id="map" class="w-full map-container z-10"></div>
 
-            document.querySelectorAll('.nav-btn').forEach(b => {
-                b.classList.remove('bg-go-600', 'text-slate-950', 'font-bold');
-                b.classList.add('text-slate-400');
-            });
-            document.getElementById(`nav-${tabId}`)?.classList.add('bg-go-600', 'text-slate-950', 'font-bold');
+                    <!-- Panel Flotante Inferior Mapa -->
+                    <div class="absolute bottom-4 left-4 right-4 z-20 max-w-md mx-auto">
+                        <div class="bg-gray-900/90 backdrop-blur-md border border-gray-800 rounded-2xl p-4 shadow-xl">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="navigation" class="w-4 h-4 text-rose-500"></i>
+                                    <span class="text-xs font-semibold text-gray-300">Zona Exclusiva</span>
+                                </div>
+                                <span class="text-[11px] bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full font-medium">Rincón de los Sauces</span>
+                            </div>
+                            <p class="text-xs text-gray-400">El mapa está configurado para operar únicamente en la zona urbana e industrial de Rincón de los Sauces.</p>
+                            <button onclick="triggerIncomingTrip()" class="mt-3 w-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                                <i data-lucide="play" class="w-4 h-4"></i> Simular Solicitud de Viaje
+                            </button>
+                        </div>
+                    </div>
+                </section>
 
-            document.querySelectorAll('.bnav-btn').forEach(b => {
-                b.classList.remove('text-go-500');
-                b.classList.add('text-slate-400');
-            });
-            document.getElementById(`bnav-${tabId}`)?.classList.add('text-go-500');
+                <!-- VISTA GANANCIAS Y COBROS -->
+                <section id="tab-earnings" class="tab-content hidden p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-xl font-bold">Ganancias & Retiros</h2>
+                            <p class="text-xs text-gray-400">Resumen financiero y transferencias directas</p>
+                        </div>
+                        <button onclick="openWithdrawModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition">
+                            <i data-lucide="arrow-up-right" class="w-4 h-4"></i> Cobrar Ganancias
+                        </button>
+                    </div>
 
-            if (tabId === 'dashboard' && state.map) {
-                setTimeout(() => state.map.invalidateSize(), 200);
-            }
-        }
-
-        function toggleOnlineStatus(isOnline) {
-            state.isOnline = isOnline;
-            const label = document.getElementById('status-label');
-            if (isOnline) {
-                label.innerText = 'EN LÍNEA';
-                label.className = 'text-xs font-bold uppercase tracking-wider text-go-500 hidden sm:inline';
-                showToast('Estado: EN LÍNEA en Rincón de los Sauces', 'success');
-            } else {
-                label.innerText = 'FUERA DE LÍNEA';
-                label.className = 'text-xs font-bold uppercase tracking-wider text-slate-500 hidden sm:inline';
-                showToast('Estado: FUERA DE LÍNEA', 'info');
-            }
-        }
-
-        function triggerSimulatedTrip() {
-            if (!state.isOnline) {
-                showToast('Debes estar EN LÍNEA para recibir viajes.', 'error');
-                return;
-            }
-
-            currentTripData = localTripsData[Math.floor(Math.random() * localTripsData.length)];
-            document.getElementById('inc-passenger').innerText = currentTripData.passenger;
-            document.getElementById('inc-origin').innerText = currentTripData.origin;
-            document.getElementById('inc-dest').innerText = currentTripData.dest;
-            document.getElementById('inc-fare').innerText = `$ ${currentTripData.fare.toLocaleString('es-AR')} ARS`;
-            document.getElementById('inc-payment').innerText = `Pago: ${currentTripData.payment}`;
-
-            playBeepSound();
-            document.getElementById('incoming-modal').classList.remove('hidden');
-
-            state.timer = 15;
-            document.getElementById('modal-timer').innerText = `${state.timer}s`;
-            clearInterval(state.timerInterval);
-            state.timerInterval = setInterval(() => {
-                state.timer--;
-                document.getElementById('modal-timer').innerText = `${state.timer}s`;
-                if (state.timer <= 0) rejectTrip();
-            }, 1000);
-        }
-
-        function acceptTrip() {
-            clearInterval(state.timerInterval);
-            document.getElementById('incoming-modal').classList.add('hidden');
-            state.hasActiveTrip = true;
-            state.tripPhase = 0;
-
-            document.getElementById('no-trip-view').classList.add('hidden');
-            document.getElementById('active-trip-view').classList.remove('hidden');
-            document.getElementById('active-badge').classList.remove('hidden');
-
-            document.getElementById('passenger-name').innerText = currentTripData.passenger;
-            document.getElementById('trip-origin').innerText = currentTripData.origin;
-            document.getElementById('trip-dest').innerText = currentTripData.dest;
-            document.getElementById('trip-fare').innerText = `$ ${currentTripData.fare.toLocaleString('es-AR')} ARS`;
-            document.getElementById('trip-payment-method').innerText = `Pago: ${currentTripData.payment}`;
-
-            updateTripMapRoute(currentTripData.originCoords, currentTripData.destCoords);
-            switchTab('trips');
-            showToast('¡Viaje Aceptado! Navegando hacia la posición.', 'success');
-        }
-
-        function rejectTrip() {
-            clearInterval(state.timerInterval);
-            document.getElementById('incoming-modal').classList.add('hidden');
-        }
-
-        function advanceTripPhase() {
-            const btn = document.getElementById('btn-advance-phase');
-            const badge = document.getElementById('trip-status-badge');
-
-            if (state.tripPhase === 0) {
-                state.tripPhase = 1;
-                badge.innerText = 'Pasajero a bordo - En viaje al destino';
-                btn.innerHTML = '<i class="fa-solid fa-flag-checkered mr-2"></i> Finalizar Servicio y Cobrar';
-                showToast('Pasajero a bordo. Dirígete al destino.', 'info');
-            } else {
-                // Finalizar
-                state.hasActiveTrip = false;
-                state.earningsToday += currentTripData.fare;
-                state.tripsToday += 1;
-
-                document.getElementById('dash-earnings').innerText = `$ ${state.earningsToday.toLocaleString('es-AR')} ARS`;
-                document.getElementById('dash-trips').innerText = `${state.tripsToday} Viajes`;
-
-                // Agregar a historial
-                const hist = document.getElementById('history-container');
-                const item = document.createElement('div');
-                item.className = "bg-slate-900 border border-slate-800 p-4 rounded-2xl flex justify-between items-center";
-                item.innerHTML = `<div><p class="font-bold text-white text-xs">${currentTripData.origin} → ${currentTripData.dest}</p><p class="text-[10px] text-slate-400">Hace instantes • ${currentTripData.payment}</p></div><span class="font-black text-go-500 text-sm">$ ${currentTripData.fare.toLocaleString('es-AR')} ARS</span>`;
-                hist.prepend(item);
-
-                document.getElementById('no-trip-view').classList.remove('hidden');
-                document.getElementById('active-trip-view').classList.add('hidden');
-                document.getElementById('active-badge').classList.add('hidden');
-
-                if (state.routePolyline) state.map.removeLayer(state.routePolyline);
-
-                showToast(`Servicio completado. +$${currentTripData.fare.toLocaleString('es-AR')} ARS`, 'success');
-                switchTab('dashboard');
-            }
-        }
-
-        function initLeafletMap() {
-            // Coordenadas Reales Rincón de los Sauces
-            const rinconCoords = [-37.387, -68.927];
-            state.map = L.map('leaflet-map').setView(rinconCoords, 14);
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 18,
-                attribution: 'OpenStreetMap'
-            }).addTo(state.map);
-
-            state.driverMarker = L.marker(rinconCoords).addTo(state.map)
-                .bindPopup('Tu posición actual (Rincón de los Sauces)').openPopup();
-        }
-
-        function updateTripMapRoute(origin, dest) {
-            if (!state.map) return;
-            if (state.routePolyline) state.map.removeLayer(state.routePolyline);
-
-            state.routePolyline = L.polyline([origin, dest], { color: '#14b8a6', weight: 4, dashArray: '8, 8' }).addTo(state.map);
-            state.map.fitBounds(state.routePolyline.getBounds(), { padding: [30, 30] });
-        }
-
-        function initChart() {
-            const ctx = document.getElementById('weekly-chart');
-            if (!ctx) return;
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
-                    datasets: [{
-                        label: 'Ingresos ($ ARS)',
-                        data: [28000, 32000, 25000, 41000, 52000, 68000, 38500],
-                        borderColor: '#14b8a6',
-                        backgroundColor: 'rgba(20, 184, 166, 0.1)',
-                        fill: true,
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { color: '#64748b' } },
-                        y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' } }
-                    }
-                }
-            });
-        }
-
-        function showToast(msg, type = 'info') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = `px-4 py-3 rounded-xl border text-xs font-bold text-white shadow-2xl bg-slate-900 ${type === 'success' ? 'border-go-500' : 'border-slate-700'}`;
-            toast.innerText = msg;
-            container.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
-
-        function playBeepSound() {
-            try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = ctx.createOscillator();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(800, ctx.currentTime);
-                osc.connect(ctx.destination);
-                osc.start();
-                osc.stop(ctx.currentTime + 0.3);
-            } catch(e){}
-        }
-    </script>
-</body>
-</html>
+                    <!-- Tarjetas de Saldo -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div class="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
+                            <p class="text-xs text-gray-400">Saldo Disponible</p>
+                            <p id="balanceAmount" class="text-2
