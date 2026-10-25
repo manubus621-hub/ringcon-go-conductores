@@ -349,18 +349,16 @@ const firebaseConfig = {
             });
         }
 
-        window.aceptarPedido = async function(idPedido) {
-            try {
-                const orderRef = doc(db, "orders", idPedido);
-                await updateDoc(orderRef, {
-                    status: "EN_CAMINO"
-                });
-                alert("¡Has tomado el pedido con éxito!");
-            } catch (e) {
-                console.error("Error al actualizar el estado: ", e);
-                alert("No se pudo aceptar el pedido. Inténtalo de nuevo.");
-            }
-        };
-    </script>
+      window.aceptarPedido = async function(idPedido) {
+    try {
+        const orderRef = doc(db, "ordenes", idPedido);
+        await updateDoc(orderRef, { estado: "EN_CAMINO" });
+        alert("Has tomado el pedido con éxito");
+    } catch (e) {
+        console.error("Error al actualizar el pedido:", e);
+        alert("No se pudo aceptar el pedido. Inténtalo de nuevo.");
+    }
+};
+</script>
 </body>
 </html>
