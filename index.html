@@ -33,7 +33,6 @@
             padding: 20px;
         }
 
-        /* Pantalla de Carga Minimalista */
         #loader-screen {
             position: fixed;
             top: 0;
@@ -72,7 +71,6 @@
             color: var(--text-muted);
         }
 
-        /* Pantalla de Login (Oculta por defecto hasta verificar sesión) */
         #login-screen {
             display: none;
             flex-direction: column;
@@ -126,7 +124,6 @@
             background-color: #f3f4f6;
         }
 
-        /* Dashboard Principal (Oculto hasta iniciar sesión) */
         #app-content {
             display: none;
             width: 100%;
@@ -227,13 +224,11 @@
 </head>
 <body>
 
-    <!-- Pantalla de Carga Inicial Minimalista -->
     <div id="loader-screen">
         <div class="spinner"></div>
         <div class="loader-title">Ringcon Go Conductores</div>
     </div>
 
-    <!-- Pantalla de Inicio de Sesión con Google -->
     <div id="login-screen">
         <div class="login-card">
             <div class="login-title">Bienvenido</div>
@@ -245,7 +240,6 @@
         </div>
     </div>
 
-    <!-- Panel Principal de Conductores (Pedidos en vivo) -->
     <div id="app-content">
         <header>
             <h1>Ringcon Go <span style="color: var(--accent-color); font-weight: 400;">Conductores</span></h1>
@@ -256,18 +250,15 @@
 
         <main>
             <div id="lista-pedidos" class="orders-container">
-                <!-- Los pedidos en tiempo real aparecerán aquí -->
             </div>
         </main>
     </div>
 
-    <!-- Lógica de Firebase y Autenticación -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, collection, query, where, onSnapshot, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // Tus credenciales oficiales de Firebase
         const firebaseConfig = {
             apiKey: "AIzaSy...",
             authDomain: "ringcon-go-e7f62.firebaseapp.com",
@@ -278,7 +269,6 @@
             measurementId: "G-GQL6LBZ7T"
         };
 
-        // Inicializar Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
@@ -286,40 +276,40 @@
 
         let unsubscribeOrders = null;
 
-        // Verificar estado de autenticación al cargar la app
+        // Capturar el resultado al volver de la redirección de Google
+        getRedirectResult(auth).catch((error) => {
+            console.error("Error en redirect de Google:", error);
+        });
+
         onAuthStateChanged(auth, (user) => {
             const loader = document.getElementById('loader-screen');
             const loginScreen = document.getElementById('login-screen');
             const appContent = document.getElementById('app-content');
 
-            // Ocultar pantalla de carga inicial suavemente
             loader.style.opacity = '0';
             setTimeout(() => loader.style.display = 'none', 400);
 
             if (user) {
-                // Usuario autenticado: mostrar panel y escuchar pedidos
                 loginScreen.style.display = 'none';
                 appContent.style.display = 'block';
                 iniciarEscuchaPedidos();
             } else {
-                // No autenticado: mostrar pantalla de inicio de sesión
-                appContent.style.display = 'block'; // Oculto visualmente por login-screen
+                appContent.style.display = 'block';
                 loginScreen.style.display = 'flex';
-                if (unsubscribeOrders) unsubscribeOrders(); // Detener escucha si cierra sesión
+                if (unsubscribeOrders) unsubscribeOrders();
             }
         });
 
-        // Función global para iniciar sesión con Google
+        // Usar signInWithRedirect para evitar bloqueos de cookies de terceros y popups
         window.iniciarSesionGoogle = async function() {
             try {
-                await signInWithPopup(auth, provider);
+                await signInWithRedirect(auth, provider);
             } catch (error) {
-                console.error("Error en la autenticación con Google:", error);
+                console.error("Error al iniciar sesión con redirección:", error);
                 alert("No se pudo iniciar sesión. Por favor, inténtalo de nuevo.");
             }
         };
 
-        // Función global para cerrar sesión
         window.cerrarSesion = async function() {
             try {
                 await signOut(auth);
@@ -328,7 +318,6 @@
             }
         };
 
-        // Escuchar pedidos en tiempo real desde Firestore
         function iniciarEscuchaPedidos() {
             const q = query(collection(db, "orders"), where("status", "==", "LISTO_PARA_RETIRAR"));
             const contenedor = document.getElementById("lista-pedidos");
@@ -359,7 +348,6 @@
             });
         }
 
-        // Función global para aceptar el pedido y cambiar su estado en la nube
         window.aceptarPedido = async function(idPedido) {
             try {
                 const orderRef = doc(db, "orders", idPedido);
