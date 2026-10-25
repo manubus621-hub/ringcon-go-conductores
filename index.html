@@ -259,14 +259,16 @@
         import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, collection, query, where, onSnapshot, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSy...",
-            authDomain: "ringcon-go-e7f62.firebaseapp.com",
-            projectId: "ringcon-go-e7f62",
-            storageBucket: "ringcon-go-e7f62.firebasestorage.app",
-            messagingSenderId: "1020059374681",
-            appId: "1:1020059374681:web:c44865aa4d2967a47ae3fc",
-            measurementId: "G-GQL6LBZ7T"
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyDKrQcRn5zbW9VDiGBsgdAh6UlbOGAP4Ps",
+  authDomain: "ringcon-go.firebaseapp.com",
+  projectId: "ringcon-go",
+  storageBucket: "ringcon-go.firebasestorage.app",
+  messagingSenderId: "868935005608",
+  appId: "1:868935005608:web:82b9d581ffeaf689f2d99d",
+  measurementId: "G-E628RBVYPJ"
+};
         };
 
         const app = initializeApp(firebaseConfig);
