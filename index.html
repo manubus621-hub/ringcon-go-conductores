@@ -2,325 +2,376 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rincón Go - Conductores</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ringcon Go - Conductores</title>
     <style>
-        body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
-        .hidden-view { display: none !important; }
-        #map { height: 100%; width: 100%; border-radius: 1rem; z-index: 1; }
-        .custom-scroll::-webkit-scrollbar { width: 4px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: #111827;
+            --accent-color: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --text-main: #f9fafb;
+            --text-muted: #9ca3af;
+            --border-color: #1f2937;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 20px;
+        }
+
+        /* Pantalla de Carga Minimalista */
+        #loader-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 16px;
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loader-title {
+            font-size: 1.1rem;
+            font-weight: 500;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+        }
+
+        /* Pantalla de Login (Oculta por defecto hasta verificar sesión) */
+        #login-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 80vh;
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 30px;
+            border-radius: 16px;
+            width: 100%;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+
+        .login-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .login-subtitle {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 24px;
+        }
+
+        .btn-google {
+            background-color: white;
+            color: #1f2937;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: background-color 0.2s;
+        }
+
+        .btn-google:hover {
+            background-color: #f3f4f6;
+        }
+
+        /* Dashboard Principal (Oculto hasta iniciar sesión) */
+        #app-content {
+            display: none;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-logout {
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-logout:hover {
+            color: #ef4444;
+            border-color: #ef4444;
+        }
+
+        .orders-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .order-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            transition: border-color 0.2s ease;
+        }
+
+        .order-card:hover {
+            border-color: var(--accent-color);
+        }
+
+        .order-id {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .order-details {
+            font-size: 1rem;
+            margin-bottom: 16px;
+        }
+
+        .btn-action {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+            transition: opacity 0.2s;
+        }
+
+        .btn-action:hover {
+            opacity: 0.9;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-muted);
+            margin-top: 40px;
+            font-size: 0.95rem;
+        }
     </style>
 </head>
-<body class="h-screen flex flex-col justify-between overflow-hidden">
+<body>
 
-    <!-- PANTALLA DE AUTENTICACIÓN (LOGIN / REGISTRO) -->
-    <div id="auth-screen" class="fixed inset-0 z-50 bg-slate-900 flex flex-col justify-between p-6 overflow-y-auto">
-        <div class="my-auto max-w-sm w-full mx-auto space-y-6">
-            <!-- Logo / Encabezado -->
-            <div class="text-center space-y-2">
-                <div class="inline-flex p-4 bg-rose-500/10 rounded-2xl text-rose-500 text-3xl mb-2">
-                    <i class="fa-solid fa-motorcycle"></i>
-                </div>
-                <h1 class="text-3xl font-black tracking-tight text-white">Rincón <span class="text-rose-500">Go</span></h1>
-                <p class="text-xs uppercase tracking-widest text-slate-400 font-semibold">Ecosistema de Repartidores • Rincón de los Sauces</p>
-            </div>
+    <!-- Pantalla de Carga Inicial Minimalista -->
+    <div id="loader-screen">
+        <div class="spinner"></div>
+        <div class="loader-title">Ringcon Go Conductores</div>
+    </div>
 
-            <!-- Formulario de Ingreso -->
-            <div class="bg-slate-800/50 border border-slate-700/60 p-6 rounded-3xl shadow-xl space-y-4 backdrop-blur-md">
-                <div class="space-y-1">
-                    <label class="text-xs font-medium text-slate-300">Correo electrónico</label>
-                    <input type="email" id="login-email" placeholder="repartidor@rincongo.com" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500 transition">
-                </div>
-
-                <div class="space-y-1">
-                    <label class="text-xs font-medium text-slate-300">Contraseña</label>
-                    <input type="password" id="login-password" placeholder="••••••••" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500 transition">
-                </div>
-
-                <button onclick="loginWithEmail()" class="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-rose-600/30 transition active:scale-95">
-                    Ingresar al Sistema
-                </button>
-
-                <div class="relative flex py-2 items-center">
-                    <div class="flex-grow border-t border-slate-700"></div>
-                    <span class="flex-shrink mx-4 text-slate-500 text-xs uppercase">o continuar con</span>
-                    <div class="flex-grow border-t border-slate-700"></div>
-                </div>
-
-                <!-- Botón Google -->
-                <button onclick="loginWithGoogle()" class="w-full bg-white hover:bg-slate-100 text-slate-900 font-semibold py-3.5 rounded-xl shadow-md flex items-center justify-center gap-3 transition active:scale-95">
-                    <i class="fa-brands fa-google text-rose-600"></i> Google Account
-                </button>
-            </div>
-            
-            <p class="text-center text-xs text-slate-500">Al ingresar aceptás las condiciones de servicio de Rincón Go.</p>
+    <!-- Pantalla de Inicio de Sesión con Google -->
+    <div id="login-screen">
+        <div class="login-card">
+            <div class="login-title">Bienvenido</div>
+            <div class="login-subtitle">Inicia sesión con tu cuenta de Google para acceder al panel de conductores.</div>
+            <button class="btn-google" onclick="iniciarSesionGoogle()">
+                <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.13 0-5.78-2.11-6.73-4.96H1.18v3.15C3.15 21.3 7.22 24 12 24z"/><path fill="#FBBC05" d="M5.27 14.24c-.25-.72-.38-1.49-.38-2.24s.13-1.52.38-2.24V6.61H1.18C.43 8.12 0 9.81 0 12s.43 3.88 1.18 5.39l4.09-3.15z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.22 0 3.15 2.7 1.18 6.61l4.09 3.15c.95-2.85 3.6-4.96 6.73-4.96z"/></svg>
+                Continuar con Google
+            </button>
         </div>
     </div>
 
-    <!-- APLICACIÓN PRINCIPAL (OCULTA HASTA LOGUEARSE) -->
-    <div id="app-screen" class="hidden-view h-full flex flex-col justify-between">
-        
-        <!-- HEADER SUPERIOR -->
-        <header class="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between z-20">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-500 font-bold" id="user-avatar">
-                    <i class="fa-solid fa-user"></i>
-                </div>
-                <div>
-                    <h2 class="text-sm font-bold text-white leading-tight" id="user-name">Repartidor</h2>
-                    <span class="inline-flex items-center gap-1.5 text-[10px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> En línea
-                    </span>
-                </div>
-            </div>
-            <div class="flex items-center gap-2">
-                <button onclick="logoutUser()" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
-                    <i class="fa-solid fa-power-off text-rose-500"></i>
-                </button>
+    <!-- Panel Principal de Conductores (Pedidos en vivo) -->
+    <div id="app-content">
+        <header>
+            <h1>Ringcon Go <span style="color: var(--accent-color); font-weight: 400;">Conductores</span></h1>
+            <div class="user-info">
+                <button class="btn-logout" onclick="cerrarSesion()">Cerrar sesión</button>
             </div>
         </header>
 
-        <!-- CONTENEDOR DE VISTAS (PÁGINAS) -->
-        <main class="flex-1 overflow-y-auto relative custom-scroll">
-            
-            <!-- VISTA 1: MAPA Y PEDIDOS ACTIVOS -->
-            <section id="view-map" class="absolute inset-0 p-4 flex flex-col gap-4">
-                <div class="flex-1 bg-slate-800/40 border border-slate-800 rounded-2xl overflow-hidden relative shadow-lg min-H-[250px]">
-                    <div id="map"></div>
-                </div>
-                <div class="bg-slate-800/80 backdrop-blur-md border border-slate-700/60 p-4 rounded-2xl shadow-xl space-y-3">
-                    <div class="flex items-center justify-between">
-                        <span class="text-xs uppercase tracking-wider font-bold text-slate-400">Próximo Pedido</span>
-                        <span class="text-xs font-bold text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-lg">#RG-402</span>
-                    </div>
-                    <div>
-                        <h3 class="text-base font-bold text-white">Lomitería Don Gato</h3>
-                        <p class="text-xs text-slate-400"><i class="fa-solid fa-location-dot text-rose-500 mr-1"></i> Entrega en B° Obrero - Calle 4</p>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2 pt-1">
-                        <button onclick="alert('Pedido aceptado con éxito')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md shadow-emerald-600/20">
-                            Aceptar Viaje ($3.500)
-                        </button>
-                        <button onclick="alert('Pedido rechazado')" class="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition">
-                            Rechazar
-                        </button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- VISTA 2: GANANCIAS Y ESTADÍSTICAS -->
-            <section id="view-stats" class="absolute inset-0 p-4 flex flex-col gap-4 hidden-view">
-                <div class="bg-slate-800/80 border border-slate-700/60 p-5 rounded-2xl shadow-xl space-y-1">
-                    <span class="text-xs text-slate-400 font-medium">Ganancias de Hoy</span>
-                    <h2 class="text-3xl font-black text-emerald-400">$28.450</h2>
-                    <p class="text-[11px] text-slate-400">8 entregas completadas en Rincón de los Sauces</p>
-                </div>
-                <div class="flex-1 bg-slate-800/80 border border-slate-700/60 p-4 rounded-2xl shadow-xl flex flex-col">
-                    <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Rendimiento Semanal</h3>
-                    <div class="flex-1 relative flex items-center justify-center">
-                        <canvas id="earningsChart"></canvas>
-                    </div>
-                </div>
-            </section>
-
-            <!-- VISTA 3: PERFIL Y RETIROS -->
-            <section id="view-profile" class="absolute inset-0 p-4 flex flex-col gap-4 hidden-view">
-                <div class="bg-slate-800/80 border border-slate-700/60 p-5 rounded-2xl shadow-xl space-y-4">
-                    <h3 class="text-sm font-bold text-white uppercase tracking-wider">Gestión de Retiros</h3>
-                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 flex items-center justify-between">
-                        <div>
-                            <span class="text-xs text-slate-400 block">Saldo disponible</span>
-                            <span class="text-xl font-black text-white">$45.200</span>
-                        </div>
-                        <button onclick="alert('Solicitud de retiro enviada al CBU registrado.')" class="bg-rose-600 hover:bg-rose-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition">
-                            Retirar Fondos
-                        </button>
-                    </div>
-                </div>
-                <div class="bg-slate-800/80 border border-slate-700/60 p-5 rounded-2xl shadow-xl space-y-3">
-                    <h3 class="text-sm font-bold text-white uppercase tracking-wider">Configuración de Cuenta</h3>
-                    <div class="space-y-2 text-xs">
-                        <div class="flex justify-between py-2 border-b border-slate-700">
-                            <span class="text-slate-400">Vehículo</span>
-                            <span class="font-semibold text-white">Moto 150cc</span>
-                        </div>
-                        <div class="flex justify-between py-2 border-b border-slate-700">
-                            <span class="text-slate-400">Zona operativa</span>
-                            <span class="font-semibold text-white">Rincón Centro</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
+        <main>
+            <div id="lista-pedidos" class="orders-container">
+                <!-- Los pedidos en tiempo real aparecerán aquí -->
+            </div>
         </main>
-
-        <!-- BARRA DE NAVEGACIÓN INFERIOR -->
-        <nav class="bg-slate-900 border-t border-slate-800 px-6 py-3 flex items-center justify-around z-20">
-            <button onclick="switchView('map')" id="nav-btn-map" class="flex flex-col items-center gap-1 text-rose-500 transition">
-                <i class="fa-solid fa-map-location-dot text-lg"></i>
-                <span class="text-[10px] font-bold">Mapa</span>
-            </button>
-            <button onclick="switchView('stats')" id="nav-btn-stats" class="flex flex-col items-center gap-1 text-slate-500 hover:text-slate-300 transition">
-                <i class="fa-solid fa-chart-pie text-lg"></i>
-                <span class="text-[10px] font-bold">Ganancias</span>
-            </button>
-            <button onclick="switchView('profile')" id="nav-btn-profile" class="flex flex-col items-center gap-1 text-slate-500 hover:text-slate-300 transition">
-                <i class="fa-solid fa-user-gear text-lg"></i>
-                <span class="text-[10px] font-bold">Perfil</span>
-            </button>
-        </nav>
-
     </div>
 
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-    <!-- FIREBASE & LOGICA PRINCIPAL -->
+    <!-- Lógica de Firebase y Autenticación -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { 
-            getAuth, 
-            signInWithPopup, 
-            signInWithRedirect,
-            GoogleAuthProvider, 
-            signInWithEmailAndPassword, 
-            signOut, 
-            onAuthStateChanged 
-        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, query, where, onSnapshot, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // CONFIGURACIÓN OFICIAL DE FIREBASE
+        // Tus credenciales oficiales de Firebase
         const firebaseConfig = {
-            apiKey: "AIzaSyDKrQcRn5zbW9VDiGBsgdAh6UlboGAP4Ps",
-            authDomain: "ringcon-go.firebaseapp.com",
-            projectId: "ringcon-go",
-            storageBucket: "ringcon-go.appspot.com",
-            messagingSenderId: "868935005608",
-            appId: "1:868935005608:web:82b9d581ffeaf689f2d99d",
-            measurementId: "G-E620RBVYPJ"
+            apiKey: "AIzaSy...",
+            authDomain: "ringcon-go-e7f62.firebaseapp.com",
+            projectId: "ringcon-go-e7f62",
+            storageBucket: "ringcon-go-e7f62.firebasestorage.app",
+            messagingSenderId: "1020059374681",
+            appId: "1:1020059374681:web:c44865aa4d2967a47ae3fc",
+            measurementId: "G-GQL6LBZ7T"
         };
 
+        // Inicializar Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
 
-        window.auth = auth;
-        window.db = db;
+        let unsubscribeOrders = null;
 
-        let leafletMap = null;
-
-        // ESTADO DE AUTENTICACIÓN
+        // Verificar estado de autenticación al cargar la app
         onAuthStateChanged(auth, (user) => {
-            const authScreen = document.getElementById('auth-screen');
-            const appScreen = document.getElementById('app-screen');
+            const loader = document.getElementById('loader-screen');
+            const loginScreen = document.getElementById('login-screen');
+            const appContent = document.getElementById('app-content');
+
+            // Ocultar pantalla de carga inicial suavemente
+            loader.style.opacity = '0';
+            setTimeout(() => loader.style.display = 'none', 400);
 
             if (user) {
-                authScreen.classList.add('hidden-view');
-                appScreen.classList.remove('hidden-view');
-                document.getElementById('user-name').innerText = user.displayName || user.email.split('@')[0];
-                if(user.photoURL) {
-                    document.getElementById('user-avatar').innerHTML = `<img src="${user.photoURL}" class="w-full h-full rounded-full object-cover">`;
-                }
-                
-                // Inicializar mapa si no está creado
-                setTimeout(() => {
-                    if (!leafletMap) {
-                        leafletMap = L.map('map').setView([-37.3941, -68.8778], 14); // Coordenadas Rincón de los Sauces
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                            maxZoom: 19,
-                        }).addTo(leafletMap);
-                    } else {
-                        leafletMap.invalidateSize();
-                    }
-                }, 300);
-
+                // Usuario autenticado: mostrar panel y escuchar pedidos
+                loginScreen.style.display = 'none';
+                appContent.style.display = 'block';
+                iniciarEscuchaPedidos();
             } else {
-                authScreen.classList.remove('hidden-view');
-                appScreen.classList.add('hidden-view');
+                // No autenticado: mostrar pantalla de inicio de sesión
+                appContent.style.display = 'block'; // Oculto visualmente por login-screen
+                loginScreen.style.display = 'flex';
+                if (unsubscribeOrders) unsubscribeOrders(); // Detener escucha si cierra sesión
             }
         });
 
-        // FUNCIONES DE LOGIN
-        window.loginWithEmail = function() {
-            const email = document.getElementById('login-email').value;
-            const pass = document.getElementById('login-password').value;
-            if(!email || !pass) {
-                alert("Por favor completa correo y contraseña.");
-                return;
-            }
-            signInWithEmailAndPassword(auth, email, pass).catch(error => {
-                alert("Error al ingresar: " + error.message);
-            });
-        };
-
-        window.loginWithGoogle = function() {
-            const provider = new GoogleAuthProvider();
-            // Usamos signInWithRedirect para máxima compatibilidad en móviles
-            signInWithRedirect(auth, provider).catch(error => {
-                console.error(error);
-                alert("Error con Google: " + error.message);
-            });
-        };
-
-        window.logoutUser = function() {
-            signOut(auth);
-        };
-
-        // NAVEGACIÓN ENTRE VISTAS
-        window.switchView = function(viewName) {
-            ['map', 'stats', 'profile'].forEach(v => {
-                document.getElementById(`view-${v}`).classList.add('hidden-view');
-                document.getElementById(`nav-btn-${v}`).classList.replace('text-rose-500', 'text-slate-500');
-            });
-            document.getElementById(`view-${viewName}`).classList.remove('hidden-view');
-            document.getElementById(`nav-btn-${viewName}`).classList.replace('text-slate-500', 'text-rose-500');
-
-            if(viewName === 'map' && leafletMap) {
-                setTimeout(() => leafletMap.invalidateSize(), 200);
-            }
-            if(viewName === 'stats') {
-                initChart();
+        // Función global para iniciar sesión con Google
+        window.iniciarSesionGoogle = async function() {
+            try {
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                console.error("Error en la autenticación con Google:", error);
+                alert("No se pudo iniciar sesión. Por favor, inténtalo de nuevo.");
             }
         };
 
-        // GRÁFICO DE GANANCIAS CON CHART.JS
-        let myChart = null;
-        function initChart() {
-            const ctx = document.getElementById('earningsChart');
-            if(myChart) return;
-            myChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
-                    datasets: [{
-                        label: 'Ganancias ($)',
-                        data: [12000, 19000, 15000, 22000, 31000, 45000, 28450],
-                        borderColor: '#f43f5e',
-                        backgroundColor: 'rgba(244, 63, 94, 0.1)',
-                        fill: true,
-                        tension: 0.3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } },
-                        y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#334155' } }
-                    }
+        // Función global para cerrar sesión
+        window.cerrarSesion = async function() {
+            try {
+                await signOut(auth);
+            } catch (error) {
+                console.error("Error al cerrar sesión:", error);
+            }
+        };
+
+        // Escuchar pedidos en tiempo real desde Firestore
+        function iniciarEscuchaPedidos() {
+            const q = query(collection(db, "orders"), where("status", "==", "LISTO_PARA_RETIRAR"));
+            const contenedor = document.getElementById("lista-pedidos");
+
+            unsubscribeOrders = onSnapshot(q, (querySnapshot) => {
+                contenedor.innerHTML = "";
+                
+                if (querySnapshot.empty) {
+                    contenedor.innerHTML = `<div class="empty-state">No hay pedidos disponibles en este momento.</div>`;
+                    return;
                 }
+
+                querySnapshot.forEach((documento) => {
+                    const pedido = documento.data();
+                    const idPedido = documento.id;
+
+                    const card = document.createElement("div");
+                    card.className = "order-card";
+                    card.innerHTML = `
+                        <div class="order-id">ID: ${idPedido}</div>
+                        <div class="order-details">📦 ${pedido.producto || pedido.item || 'Nuevo pedido disponible'}</div>
+                        <button class="btn-action" onclick="aceptarPedido('${idPedido}')">Aceptar Viaje</button>
+                    `;
+                    contenedor.appendChild(card);
+                });
+            }, (error) => {
+                console.error("Error al escuchar la base de datos:", error);
             });
         }
+
+        // Función global para aceptar el pedido y cambiar su estado en la nube
+        window.aceptarPedido = async function(idPedido) {
+            try {
+                const orderRef = doc(db, "orders", idPedido);
+                await updateDoc(orderRef, {
+                    status: "EN_CAMINO"
+                });
+                alert("¡Has tomado el pedido con éxito!");
+            } catch (e) {
+                console.error("Error al actualizar el estado: ", e);
+                alert("No se pudo aceptar el pedido. Inténtalo de nuevo.");
+            }
+        };
     </script>
 </body>
 </html>
