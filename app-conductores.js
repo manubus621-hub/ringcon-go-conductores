@@ -157,10 +157,9 @@ function render() {
 function renderLogin() {
   $('#app').innerHTML = `
   <main class="login">
-    <div class="login-art" aria-hidden="true"><span>🛵</span></div>
     <div class="login-box">
-      <div class="logo">ringcon<b>go</b><em>conductores</em></div>
-      <h1>Maneja.<br>Gana.<br>Repite.</h1>
+      <svg class="ico" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#141416"/><path d="M256 104 388 398 256 332 124 398Z" fill="#ff3b1f" stroke="#ff3b1f" stroke-width="28" stroke-linejoin="round"/></svg>
+      <h1>Conductores</h1>
       <p class="sub">Entra con tu nombre y empieza a recibir pedidos.</p>
       <form id="login-form">
         <label class="field">Tu nombre<input id="l-name" autocomplete="name" placeholder="Ej: Carlos" required maxlength="30"></label>
