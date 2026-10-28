@@ -1,3 +1,24 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f0f11">
+<title>Ringcon Go · Conductores</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f0f11;--card:#1a1a1e;--ink:#ffffff;--mute:#a1a1aa;--line:#27272a;
+  --brand:#ff3b1f;--ok:#22c55e;--warn:#eab308;--bad:#ef4444;
+  --display:'Bricolage Grotesque',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:16px/1.45 system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit;border:0;background:none}
+h1,h2,h3{font-family:var(--display);letter-spacing:-.025em}
+
 .login{min-height:100dvh;display:grid;place-items:center;padding:24px}
 .login-box{max-width:360px;width:100%;text-align:center}
 .field{display:block;margin-bottom:14px;font-size:13px;font-weight:600;color:var(--mute);text-align:left}
@@ -11,7 +32,7 @@
 .switch.on::after{transform:translateX(22px)}
 
 .wrap{max-width:600px;margin:0 auto;padding:16px 16px 100px}
-.card-ord{background:var(--card);border-radius:var(--r);padding:18px;margin-bottom:16px;border:1px solid var(--line)}
+.card-ord{background:var(--card);border-radius:20px;padding:18px;margin-bottom:16px;border:1px solid var(--line)}
 .card-ord.active{border-color:var(--brand)}
 .badge{display:inline-block;padding:4px 10px;border-radius:99px;font-size:12px;font-weight:800;margin-bottom:8px}
 .badge.pay-card{background:#183b2b;color:#4ade80;border:1px solid #22543d}
@@ -22,5 +43,219 @@
 .info-box{background:rgba(255,255,255,.05);padding:12px;border-radius:12px;margin:12px 0;font-size:13px}
 .info-box.alert-card{background:rgba(74,222,128,.1);border:1.5px solid rgba(74,222,128,.3);color:#4ade80}
 .info-box.alert-cash{background:rgba(250,204,21,.1);border:1.5px solid rgba(250,204,21,.3);color:#facc15}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:14px;border-radius:14px;font-weight:800;width:100%;margin-top:10px;cursor:pointer}
+.btn.primary{background:var(--brand);color:#fff}
+.btn.success{background:var(--ok);color:#fff}
+
 #toast{position:fixed;left:50%;top:14px;transform:translate(-50%,-140%);z-index:90;background:#fff;color:#000;padding:12px 18px;border-radius:14px;font-weight:700;transition:transform .3s}
 #toast.on{transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+
+const CONFIG = {
+  FIREBASE_URL: "https://ringcon-go-e7f62-default-rtdb.firebaseio.com",
+  ROOM: "ringcon-go",
+  CURRENCY: "$"
+};
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+
+const money = n => CONFIG.CURRENCY + String(Math.round(Number(n || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+let state = {
+  driver: store.get('rcg:driver', null),
+  online: false,
+  orders: {}
+};
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'on';
+  setTimeout(() => t.className = '', 3000);
+}
+
+const base = CONFIG.FIREBASE_URL.replace(/\/+$/, '') + '/' + CONFIG.ROOM;
+
+async function syncOrders() {
+  try {
+    const r = await fetch(`${base}/orders.json`);
+    if (r.ok) {
+      state.orders = (await r.json()) || {};
+      render();
+    }
+  } catch {}
+}
+
+async function heartbeat() {
+  if (!state.driver || !state.online) return;
+  try {
+    await fetch(`${base}/drivers/${state.driver.id}.json`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: state.driver.id,
+        name: state.driver.name,
+        online: true,
+        lastSeen: Date.now()
+      })
+    });
+  } catch {}
+}
+
+setInterval(syncOrders, 4000);
+setInterval(heartbeat, 10000);
+
+function render() {
+  const app = document.getElementById('app');
+  if (!state.driver) {
+    app.innerHTML = `
+      <main class="login">
+        <div class="login-box">
+          <h1 style="font-size:28px;margin-bottom:12px">Panel Conductor</h1>
+          <form id="drv-form">
+            <label class="field">Nombre completo<input id="d-name" required placeholder="Ej: Carlos López"></label>
+            <label class="field">Teléfono<input id="d-phone" required placeholder="Ej: 2991234567"></label>
+            <button class="btn primary">Iniciar Sesión</button>
+          </form>
+        </div>
+      </main>`;
+    document.getElementById('drv-form').onsubmit = e => {
+      e.preventDefault();
+      const name = document.getElementById('d-name').value.trim();
+      const phone = document.getElementById('d-phone').value.trim();
+      if (name) {
+        state.driver = { id: 'd_' + Date.now().toString(36), name, phone };
+        store.set('rcg:driver', state.driver);
+        render();
+      }
+    };
+    return;
+  }
+
+  const allOrders = Object.values(state.orders || {});
+  const available = allOrders.filter(o => o.status === 'nuevo');
+  const myActive = allOrders.find(o => o.driver && o.driver.id === state.driver.id && o.status !== 'entregado' && o.status !== 'cancelado');
+
+  app.innerHTML = `
+    <header class="top">
+      <div><strong>${state.driver.name}</strong></div>
+      <div class="toggle">
+        <span>${state.online ? 'EN LÍNEA' : 'OFFLINE'}</span>
+        <div class="switch ${state.online ? 'on' : ''}" id="toggle-online"></div>
+      </div>
+    </header>
+    <main class="wrap">
+      ${myActive ? renderActiveOrder(myActive) : renderAvailableOrders(available)}
+    </main>`;
+
+  document.getElementById('toggle-online').onclick = () => {
+    state.online = !state.online;
+    heartbeat();
+    render();
+  };
+}
+
+function renderActiveOrder(o) {
+  const isCard = o.payment && (o.payment.method === 'tarjeta' || o.payment.method === 'personalpay');
+  return `
+    <h2 style="margin-bottom:12px">Pedido en Curso</h2>
+    <div class="card-ord active">
+      <span class="badge ${isCard ? 'pay-card' : 'pay-cash'}">
+        ${isCard ? '💳 PAGADO DIGITALMENTE' : '💵 COBRAR EN EFECTIVO'}
+      </span>
+      <h3>${o.business.name}</h3>
+      <p style="color:var(--mute);font-size:14px;margin-bottom:12px">Entrega en: ${o.address.text}</p>
+
+      ${isCard 
+        ? `<div class="info-box alert-card">
+             <b>NO COBRAR EN LA PUERTA</b><br>
+             El cliente ya pagó mediante Personal Pay / Tarjeta a la cuenta central.
+           </div>`
+        : `<div class="info-box alert-cash">
+             <b>COBRAR EN PUERTA: ${money(o.totals.total)}</b><br>
+             Rendir al local: ${money(o.split.restaurant)}<br>
+             Tu ganancia envío: ${money(o.driverPay)}
+           </div>`
+      }
+
+      <div class="row"><span>Cliente:</span><b>${o.customer.name}</b></div>
+      <div class="row"><span>Teléfono:</span><b><a href="tel:${o.customer.phone}" style="color:var(--brand)">${o.customer.phone || 'Sin tel'}</a></b></div>
+
+      ${o.status === 'aceptado' 
+        ? `<button class="btn primary" onclick="updateStatus('${o.id}', 'recogido')">Confirmar Retiro en Local</button>`
+        : `<button class="btn success" onclick="updateStatus('${o.id}', 'entregado')">Finalizar Entregado</button>`
+      }
+    </div>`;
+}
+
+function renderAvailableOrders(list) {
+  if (!state.online) {
+    return `<div style="text-align:center;padding:40px 0;color:var(--mute)">Ponte "EN LÍNEA" arriba para ver pedidos disponibles.</div>`;
+  }
+  if (!list.length) {
+    return `<div style="text-align:center;padding:40px 0;color:var(--mute)">Buscando pedidos cercanos…</div>`;
+  }
+
+  return `
+    <h2 style="margin-bottom:12px">Pedidos Disponibles (${list.length})</h2>
+    ${list.map(o => {
+      const isCard = o.payment && (o.payment.method === 'tarjeta' || o.payment.method === 'personalpay');
+      return `
+        <div class="card-ord">
+          <span class="badge ${isCard ? 'pay-card' : 'pay-cash'}">
+            ${isCard ? '💳 DIGITAL (PAGADO)' : '💵 EFECTIVO'}
+          </span>
+          <h3>${o.business.name}</h3>
+          <div class="row"><span>Ganancia envío:</span><b style="color:var(--ok)">${money(o.driverPay)}</b></div>
+          <div class="row"><span>Destino:</span><span>${o.address.text}</span></div>
+          <button class="btn primary" onclick="acceptOrder('${o.id}')">Aceptar Pedido</button>
+        </div>`;
+    }).join('')}`;
+}
+
+window.acceptOrder = async function(id) {
+  try {
+    await fetch(`${base}/orders/${id}.json`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: 'aceptado',
+        driver: { id: state.driver.id, name: state.driver.name, phone: state.driver.phone }
+      })
+    });
+    toast('¡Pedido asignado!');
+    syncOrders();
+  } catch {
+    toast('Error al tomar pedido');
+  }
+};
+
+window.updateStatus = async function(id, status) {
+  try {
+    await fetch(`${base}/orders/${id}.json`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+    toast('Estado actualizado');
+    syncOrders();
+  } catch {
+    toast('Error al actualizar');
+  }
+};
+
+syncOrders();
+})();
+</script>
+</body>
+</html>
