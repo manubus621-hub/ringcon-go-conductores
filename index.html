@@ -10,8 +10,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#ffffff;--card:#f5f5f7;--ink:#141416;--mute:#75757d;--line:#ececf0;
-  --brand:#ff3b1f;--brand-d:#e32d12;--ok:#12a863;--warn:#f08c00;--bad:#e5384b;
+  --bg:#ffffff;--card:#fafafa;--ink:#0f0f11;--mute:#71717a;--line:#f4f4f5;
+  --brand:#ff3b1f;--brand-d:#e32d12;--ok:#10b981;--warn:#f59e0b;--bad:#ef4444;
   --display:'Bricolage Grotesque',system-ui,sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -19,35 +19,38 @@ body{font:16px/1.45 system-ui,-apple-system,sans-serif;background:var(--bg);colo
 button,input{font:inherit;color:inherit;border:0;background:none}
 h1,h2,h3{font-family:var(--display);letter-spacing:-.025em}
 
-.login{min-height:100dvh;display:grid;place-items:center;padding:24px;background:#fff}
-.login-box{max-width:360px;width:100%;text-align:center}
-.field{display:block;margin-bottom:14px;font-size:13px;font-weight:600;color:var(--mute);text-align:left}
-.field input{display:block;width:100%;margin-top:6px;padding:14px 16px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);font-size:16px;outline:0}
+.login{min-height:100dvh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at top, #fff5f3 0%, #ffffff 70%)}
+.login-box{max-width:380px;width:100%;text-align:center}
+.field{display:block;margin-bottom:16px;font-size:13px;font-weight:600;color:var(--mute);text-align:left}
+.field input{display:block;width:100%;margin-top:6px;padding:16px 18px;border-radius:16px;border:1.5px solid var(--line);background:var(--card);font-size:16px;outline:0;transition:all .2s}
+.field input:focus{border-color:var(--brand);background:#fff;box-shadow:0 0 0 4px rgba(255,59,31,.1)}
 
-.top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:blur(14px);border-bottom:1px solid var(--line);padding:14px 16px;display:flex;align-items:center;justify-content:space-between}
-.toggle{display:flex;align-items:center;gap:10px;font-weight:700;font-size:14px}
-.switch{width:50px;height:28px;background:var(--line);border-radius:99px;position:relative;cursor:pointer;transition:background .2s}
-.switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:blur(20px);border-bottom:1px solid var(--line);padding:14px 20px;display:flex;align-items:center;justify-content:space-between}
+.toggle{display:flex;align-items:center;gap:12px;font-weight:700;font-size:14px}
+.switch{width:52px;height:30px;background:var(--line);border-radius:99px;position:relative;cursor:pointer;transition:background .2s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 2px 6px rgba(0,0,0,.15)}
 .switch.on{background:var(--ok)}
 .switch.on::after{transform:translateX(22px)}
 
-.wrap{max-width:600px;margin:0 auto;padding:16px 16px 100px}
-.card-ord{background:var(--card);border-radius:20px;padding:18px;margin-bottom:16px;border:0}
-.card-ord.active{border:2px solid var(--brand)}
-.badge{display:inline-block;padding:4px 10px;border-radius:99px;font-size:12px;font-weight:800;margin-bottom:8px}
-.badge.pay-card{background:#dff6ea;color:#0b7a46}
-.badge.pay-cash{background:#fff0d2;color:#955700}
+/* AMPLIADO PARA OCUPAR TODA LA PANTALLA CON DISEÑO FUTURISTA */
+.wrap{max-width:900px;margin:0 auto;padding:24px 20px 120px}
+.card-ord{background:var(--card);border-radius:24px;padding:24px;margin-bottom:20px;border:1px solid var(--line);box-shadow:0 10px 30px -10px rgba(0,0,0,.03);transition:all .3s}
+.card-ord.active{border-color:var(--brand);background:#fff;box-shadow:0 20px 40px -15px rgba(255,59,31,.15)}
+.badge{display:inline-block;padding:6px 14px;border-radius:99px;font-size:12px;font-weight:800;margin-bottom:12px}
+.badge.pay-card{background:#dcfce7;color:#166534}
+.badge.pay-cash{background:#fef3c7;color:#92400e}
 
-.row{display:flex;justify-content:space-between;margin:6px 0;font-size:14px}
-.info-box{background:#fff;padding:14px;border-radius:14px;margin:12px 0;font-size:13px;border:1px solid var(--line)}
-.info-box.alert-card{background:#eefbf3;border-color:#bcf0d0;color:#0b7a46}
-.info-box.alert-cash{background:#fff8eb;border-color:#ffe3b3;color:#955700}
+.row{display:flex;justify-content:space-between;margin:8px 0;font-size:15px}
+.info-box{background:#fff;padding:16px;border-radius:16px;margin:16px 0;font-size:14px;border:1px solid var(--line)}
+.info-box.alert-card{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
+.info-box.alert-cash{background:#fffbeb;border-color:#fde68a;color:#92400e}
 
-.btn{display:inline-flex;align-items:center;justify-content:center;padding:14px;border-radius:14px;font-weight:800;width:100%;margin-top:10px;cursor:pointer}
-.btn.primary{background:var(--brand);color:#fff}
-.btn.success{background:var(--ok);color:#fff}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:16px;border-radius:16px;font-weight:800;width:100%;margin-top:14px;cursor:pointer;transition:transform .15s}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:var(--brand);color:#fff;box-shadow:0 10px 25px -10px var(--brand)}
+.btn.success{background:var(--ok);color:#fff;box-shadow:0 10px 25px -10px var(--ok)}
 
-#toast{position:fixed;left:50%;top:14px;transform:translate(-50%,-140%);z-index:90;background:var(--ink);color:#fff;padding:12px 18px;border-radius:14px;font-weight:600;font-size:14px;transition:transform .3s;max-width:92vw}
+#toast{position:fixed;left:50%;top:16px;transform:translate(-50%,-160%);z-index:90;background:var(--ink);color:#fff;padding:14px 22px;border-radius:16px;font-weight:700;transition:transform .3s;max-width:92vw;box-shadow:0 20px 40px rgba(0,0,0,.2)}
 #toast.on{transform:translate(-50%,0)}
 </style>
 </head>
@@ -121,7 +124,8 @@ function render() {
     app.innerHTML = `
       <main class="login">
         <div class="login-box">
-          <h1 style="font-size:28px;margin-bottom:12px">Panel Conductor</h1>
+          <h1 style="font-size:32px;margin-bottom:8px">Panel Conductor</h1>
+          <p class="sub">Operativa en tiempo real Rincón Go</p>
           <form id="drv-form">
             <label class="field">Nombre completo<input id="d-name" required placeholder="Ej: Carlos López"></label>
             <label class="field">Teléfono<input id="d-phone" required placeholder="Ej: 2991234567"></label>
@@ -148,9 +152,9 @@ function render() {
 
   app.innerHTML = `
     <header class="top">
-      <div><strong>${state.driver.name}</strong></div>
+      <div><strong style="font-size:17px">${state.driver.name}</strong></div>
       <div class="toggle">
-        <span>${state.online ? 'EN LÍNEA' : 'OFFLINE'}</span>
+        <span style="font-size:13px;color:var(--mute)">${state.online ? 'EN LÍNEA' : 'OFFLINE'}</span>
         <div class="switch ${state.online ? 'on' : ''}" id="toggle-online"></div>
       </div>
     </header>
@@ -166,25 +170,25 @@ function render() {
 }
 
 function renderActiveOrder(o) {
-  const isCard = o.payment && (o.payment.method === 'tarjeta' || o.payment.method === 'personalpay');
+  const isCard = o.payment && o.payment.method === 'tarjeta';
   return `
-    <h2 style="margin-bottom:12px">Pedido en Curso</h2>
+    <h2 style="margin-bottom:16px;font-size:24px">Pedido en Curso</h2>
     <div class="card-ord active">
       <span class="badge ${isCard ? 'pay-card' : 'pay-cash'}">
-        ${isCard ? '💳 PAGADO DIGITALMENTE' : '💵 COBRAR EN EFECTIVO'}
+        ${isCard ? '💳 PAGADO CON TARJETA (AUTOMÁTICO)' : '💵 COBRAR EN EFECTIVO'}
       </span>
-      <h3>${o.business.name}</h3>
-      <p style="color:var(--mute);font-size:14px;margin-bottom:12px">Entrega en: ${o.address.text}</p>
+      <h3 style="font-size:22px;margin-bottom:4px">${o.business.name}</h3>
+      <p style="color:var(--mute);font-size:15px;margin-bottom:16px">Entrega en: <b>${o.address.text}</b></p>
 
       ${isCard 
         ? `<div class="info-box alert-card">
-             <b>NO COBRAR EN LA PUERTA</b><br>
-             El cliente ya pagó mediante Personal Pay / Tarjeta a la cuenta central.
+             <b>⚡ PAGO DIGITAL ACREDITADO</b><br>
+             El cliente ya pagó automáticamente con tarjeta. No debes cobrarle nada en puerta.
            </div>`
         : `<div class="info-box alert-cash">
-             <b>COBRAR EN PUERTA: ${money(o.totals.total)}</b><br>
+             <b>💵 COBRAR EN PUERTA: ${money(o.totals.total)}</b><br>
              Rendir al local: ${money(o.split.restaurant)}<br>
-             Tu ganancia envío: ${money(o.driverPay)}
+             Tu ganancia de envío: ${money(o.driverPay)}
            </div>`
       }
 
@@ -193,30 +197,30 @@ function renderActiveOrder(o) {
 
       ${o.status === 'aceptado' 
         ? `<button class="btn primary" onclick="updateStatus('${o.id}', 'recogido')">Confirmar Retiro en Local</button>`
-        : `<button class="btn success" onclick="updateStatus('${o.id}', 'entregado')">Finalizar Entregado</button>`
+        : `<button class="btn success" onclick="updateStatus('${o.id}', 'entregado')">Finalizar y Marcar Entregado</button>`
       }
     </div>`;
 }
 
 function renderAvailableOrders(list) {
   if (!state.online) {
-    return `<div style="text-align:center;padding:40px 0;color:var(--mute)">Ponte "EN LÍNEA" arriba para ver pedidos disponibles.</div>`;
+    return `<div style="text-align:center;padding:60px 0;color:var(--mute);font-size:16px">Ponte <b>"EN LÍNEA"</b> arriba para comenzar a recibir pedidos en tiempo real.</div>`;
   }
   if (!list.length) {
-    return `<div style="text-align:center;padding:40px 0;color:var(--mute)">Buscando pedidos cercanos…</div>`;
+    return `<div style="text-align:center;padding:60px 0;color:var(--mute);font-size:16px">Buscando nuevos pedidos en Rincón de los Sauces…</div>`;
   }
 
   return `
-    <h2 style="margin-bottom:12px">Pedidos Disponibles (${list.length})</h2>
+    <h2 style="margin-bottom:16px;font-size:24px">Pedidos Disponibles (${list.length})</h2>
     ${list.map(o => {
-      const isCard = o.payment && (o.payment.method === 'tarjeta' || o.payment.method === 'personalpay');
+      const isCard = o.payment && o.payment.method === 'tarjeta';
       return `
         <div class="card-ord">
           <span class="badge ${isCard ? 'pay-card' : 'pay-cash'}">
-            ${isCard ? '💳 DIGITAL (PAGADO)' : '💵 EFECTIVO'}
+            ${isCard ? '💳 PAGADO CON TARJETA' : '💵 EFECTIVO'}
           </span>
-          <h3>${o.business.name}</h3>
-          <div class="row"><span>Ganancia envío:</span><b style="color:var(--ok)">${money(o.driverPay)}</b></div>
+          <h3 style="font-size:20px;margin-bottom:4px">${o.business.name}</h3>
+          <div class="row"><span>Ganancia envío:</span><b style="color:var(--ok);font-size:16px">${money(o.driverPay)}</b></div>
           <div class="row"><span>Destino:</span><span>${o.address.text}</span></div>
           <button class="btn primary" onclick="acceptOrder('${o.id}')">Aceptar Pedido</button>
         </div>`;
@@ -233,7 +237,7 @@ window.acceptOrder = async function(id) {
         driver: { id: state.driver.id, name: state.driver.name, phone: state.driver.phone }
       })
     });
-    toast('¡Pedido asignado!');
+    toast('¡Pedido aceptado con éxito!');
     syncOrders();
   } catch {
     toast('Error al tomar pedido');
