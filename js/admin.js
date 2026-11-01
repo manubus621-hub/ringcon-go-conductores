@@ -1,7 +1,7 @@
 /* Panel de administración Ringcon Go: padrón, verificación de conductores y pedidos */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getDatabase, ref, onValue, set, remove, get } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
+import { getDatabase, ref, onValue, set, update, remove, get } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
 import { FIREBASE, API_URL } from './config.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -37,7 +37,10 @@ const api = { getDriverDocs: call('getDriverDocs'), reviewDriver: call('reviewDr
 
 const ST = { docs_pendientes: ['Sin fotos', 'wait'], en_revision: ['Para revisar', 'wait'], aprobado: ['Aprobado', 'ok'], rechazado: ['Rechazado', 'bad'], suspendido: ['Suspendido', 'bad'] };
 const OS = { pago_pendiente: 'Esperando pago', nuevo: 'Buscando conductor', aceptado: 'Aceptado', en_local: 'En el local', recogido: 'En camino', entregado: 'Entregado', cancelado: 'Cancelado' };
-const state = { tab: 'solicitudes', drivers: {}, padron: {}, orders: {}, docs: {}, editing: null };
+const state = { tab: 'solicitudes', drivers: {}, padron: {}, orders: {}, docs: {}, editing: null, catalog: {}, biz: null, item: null };
+const byOrder = o => Object.entries(o || {}).map(([id, v]) => ({ ...v, id })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+const slug = s => (String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'x') + '-' + Math.random().toString(36).slice(2, 6);
+const num = v => Math.max(0, Math.round(Number(String(v).replace(/[^\d]/g, '')) || 0));
 let subs = [];
 
 function login() {
@@ -52,13 +55,13 @@ function login() {
 
 function render() {
   const pend = Object.values(state.drivers).filter(d => d.status === 'en_revision').length;
-  const tabs = [['solicitudes', `Solicitudes${pend ? ` (${pend})` : ''}`], ['conductores', 'Conductores'], ['padron', 'Padrón'], ['pedidos', 'Pedidos']];
+  const tabs = [['solicitudes', `Solicitudes${pend ? ` (${pend})` : ''}`], ['conductores', 'Conductores'], ['padron', 'Padrón'], ['locales', 'Locales'], ['pedidos', 'Pedidos']];
   $('#app').innerHTML = `
   <header class="top"><div class="top-in"><div class="who"><b>Ringcon Go · Admin</b><small>${esc(auth.currentUser.email)}</small></div>
     <button class="icon-btn" data-act="logout" aria-label="Cerrar sesión">⎋</button></div></header>
   <main class="wrap">
     <nav class="tabs" role="tablist">${tabs.map(([k, l]) => `<button class="tab" role="tab" aria-selected="${state.tab === k}" data-act="tab" data-tab="${k}">${l}</button>`).join('')}</nav>
-    <section id="view">${({ solicitudes: vSolicitudes, conductores: vConductores, padron: vPadron, pedidos: vPedidos })[state.tab]()}</section>
+    <section id="view">${({ solicitudes: vSolicitudes, conductores: vConductores, padron: vPadron, locales: vLocales, pedidos: vPedidos })[state.tab]()}</section>
   </main>`;
 }
 
@@ -148,6 +151,99 @@ function vPedidos() {
   </tbody></table></div>`;
 }
 
+/* ─────────── locales y productos ─────────── */
+function vLocales() {
+  if (state.biz) return vLocal();
+  const list = byOrder(state.catalog);
+  return `<div class="actions" style="margin:0 0 16px"><button class="btn primary" data-act="biz-new">+ Agregar local</button></div>
+  ${list.length ? list.map(b => `<div class="card">
+    <span class="badge ${b.open === false ? 'bad' : 'ok'}">${b.open === false ? 'Cerrado' : 'Abierto'}</span>
+    <h3>${esc(b.emoji || '🏪')} ${esc(b.name)}</h3>
+    <div class="kv"><span>Rubro</span><b>${esc(b.cat || '—')}</b></div>
+    <div class="kv"><span>Envío</span><b>${money(b.fee)}</b></div>
+    <div class="kv"><span>Productos</span><b>${Object.keys(b.menu || {}).length}</b></div>
+    <div class="actions">
+      <button class="btn primary" data-act="biz-edit" data-id="${esc(b.id)}">Editar local y productos</button>
+      <button class="btn ghost" data-act="biz-toggle" data-id="${esc(b.id)}">${b.open === false ? 'Abrir' : 'Cerrar'}</button>
+    </div></div>`).join('') : '<div class="empty"><span class="em">🏪</span>Todavía no hay locales. Agregá el primero.</div>'}`;
+}
+
+function vLocal() {
+  const isNew = state.biz === 'new', b = isNew ? { open: true, fee: 1500, eta: '25–35 min', emoji: '🍽️' } : (state.catalog[state.biz] || {});
+  const items = byOrder(b.menu), it = state.item && state.item !== 'new' ? (b.menu || {})[state.item] || {} : { available: true };
+  return `<button class="btn ghost sm" data-act="biz-back" style="margin-bottom:14px">← Volver a locales</button>
+  <div class="card">
+    <h3 style="margin-bottom:12px">${isNew ? 'Nuevo local' : 'Datos del local'}</h3>
+    <form id="f-biz">
+      <div class="row2">
+        <label class="field">Nombre<input id="b-name" required maxlength="60" value="${esc(b.name || '')}" placeholder="Ej: Pizzería Don José"></label>
+        <label class="field">Rubro<input id="b-cat" required maxlength="30" value="${esc(b.cat || '')}" placeholder="Ej: Pizza"></label>
+      </div>
+      <div class="row2">
+        <label class="field">Emoji<input id="b-emoji" maxlength="4" value="${esc(b.emoji || '')}" placeholder="🍕"></label>
+        <label class="field">Demora estimada<input id="b-eta" maxlength="20" value="${esc(b.eta || '')}" placeholder="25–35 min"></label>
+      </div>
+      <div class="row2">
+        <label class="field">Costo de envío ($)<input id="b-fee" inputmode="numeric" required value="${esc(b.fee ?? '')}"></label>
+        <label class="field">Orden en la lista<input id="b-order" inputmode="numeric" value="${esc(b.order ?? Object.keys(state.catalog).length)}"></label>
+      </div>
+      <label class="field" style="display:flex;gap:10px;align-items:center"><input id="b-open" type="checkbox" style="width:auto;margin:0" ${b.open === false ? '' : 'checked'}> Abierto (recibe pedidos)</label>
+      <div class="actions"><button class="btn primary">${isNew ? 'Crear local' : 'Guardar cambios'}</button>
+        ${isNew ? '' : '<button type="button" class="btn ghost" data-act="biz-del">Borrar local</button>'}</div>
+    </form>
+  </div>
+  ${isNew ? '<p class="small mute">Creá el local y después vas a poder cargar sus productos.</p>' : `
+  <div class="card">
+    <h3 style="margin-bottom:12px">${state.item === 'new' ? 'Nuevo producto' : state.item ? 'Editar producto' : 'Agregar producto'}</h3>
+    <form id="f-item">
+      <div class="row2">
+        <label class="field">Nombre<input id="i-name" required maxlength="60" value="${esc(it.name || '')}" placeholder="Ej: Muzzarella grande"></label>
+        <label class="field">Precio ($)<input id="i-price" inputmode="numeric" required value="${esc(it.price ?? '')}" placeholder="12000"></label>
+      </div>
+      <div class="row2">
+        <label class="field">Descripción<input id="i-desc" maxlength="120" value="${esc(it.desc || '')}" placeholder="Ej: 8 porciones"></label>
+        <label class="field">Emoji<input id="i-emoji" maxlength="4" value="${esc(it.emoji || '')}" placeholder="🍕"></label>
+      </div>
+      <label class="field" style="display:flex;gap:10px;align-items:center"><input id="i-av" type="checkbox" style="width:auto;margin:0" ${it.available === false ? '' : 'checked'}> Disponible</label>
+      <div class="actions"><button class="btn primary">${state.item && state.item !== 'new' ? 'Guardar producto' : 'Agregar producto'}</button>
+        ${state.item ? '<button type="button" class="btn ghost" data-act="item-cancel">Cancelar</button>' : ''}</div>
+    </form>
+  </div>
+  ${items.length ? `<div class="card scroll"><table><thead><tr><th>Producto</th><th>Precio</th><th>Estado</th><th></th></tr></thead><tbody>
+    ${items.map(m => `<tr><td>${esc(m.emoji || '')} <b>${esc(m.name)}</b><br><span class="mute small">${esc(m.desc || '')}</span></td>
+      <td>${money(m.price)}</td>
+      <td>${m.available === false ? '<span class="badge bad">Sin stock</span>' : '<span class="badge ok">Disponible</span>'}</td>
+      <td style="white-space:nowrap"><button class="btn ghost sm" data-act="item-edit" data-id="${esc(m.id)}">Editar</button>
+        <button class="btn ghost sm" data-act="item-toggle" data-id="${esc(m.id)}">${m.available === false ? 'Hay stock' : 'Sin stock'}</button>
+        <button class="btn ghost sm" data-act="item-del" data-id="${esc(m.id)}">Borrar</button></td></tr>`).join('')}
+  </tbody></table></div>` : '<div class="empty">Este local todavía no tiene productos.</div>'}`}`;
+}
+
+async function saveBiz() {
+  const name = $('#b-name').value.trim(), cat = $('#b-cat').value.trim();
+  if (name.length < 2 || !cat) { toast('Completá nombre y rubro', 'err'); return; }
+  const data = {
+    name, cat, emoji: $('#b-emoji').value.trim() || '🍽️', eta: $('#b-eta').value.trim() || '25–35 min',
+    fee: num($('#b-fee').value), order: num($('#b-order').value), open: $('#b-open').checked
+  };
+  const isNew = state.biz === 'new', id = isNew ? slug(name) : state.biz;
+  try { await update(ref(db, `catalog/${id}`), data); state.biz = id; toast(isNew ? 'Local creado. Ahora cargá sus productos.' : 'Guardado'); render(); }
+  catch { toast('No se pudo guardar. Revisá los datos.', 'err'); }
+}
+
+async function saveItem() {
+  const name = $('#i-name').value.trim(), price = num($('#i-price').value);
+  if (name.length < 2 || !price) { toast('Completá nombre y precio', 'err'); return; }
+  const menu = (state.catalog[state.biz] || {}).menu || {};
+  const id = state.item && state.item !== 'new' ? state.item : slug(name);
+  const data = {
+    name, price, desc: $('#i-desc').value.trim(), emoji: $('#i-emoji').value.trim() || '🍽️',
+    available: $('#i-av').checked, order: menu[id] ? menu[id].order ?? 0 : Object.keys(menu).length
+  };
+  try { await set(ref(db, `catalog/${state.biz}/menu/${id}`), data); state.item = null; toast('Producto guardado'); render(); }
+  catch { toast('No se pudo guardar el producto.', 'err'); }
+}
+
 document.addEventListener('submit', async e => {
   e.preventDefault();
   if (e.target.id === 'f-admin') {
@@ -167,6 +263,8 @@ document.addEventListener('submit', async e => {
     try { await set(ref(db, `padron/${dni}`), p); state.editing = null; toast('Guardado'); render(); }
     catch { toast('No se pudo guardar. Revisá los datos.', 'err'); }
   }
+  if (e.target.id === 'f-biz') await saveBiz();
+  if (e.target.id === 'f-item') await saveItem();
 });
 
 const A = {
@@ -192,12 +290,35 @@ const A = {
     if (!confirm('¿Cancelar este pedido? Si se pagó con tarjeta, se devuelve el dinero.')) return;
     try { await api.cancelOrder({ orderId: t.dataset.id }); toast('Pedido cancelado'); } catch (e) { toast(e.message, 'err'); }
   },
+  'biz-new': () => { state.biz = 'new'; state.item = null; render(); scrollTo(0, 0); },
+  'biz-edit': t => { state.biz = t.dataset.id; state.item = null; render(); scrollTo(0, 0); },
+  'biz-back': () => { state.biz = null; state.item = null; render(); },
+  'biz-toggle': async t => {
+    const b = state.catalog[t.dataset.id];
+    try { await update(ref(db, `catalog/${t.dataset.id}`), { open: b.open === false }); } catch { toast('No se pudo cambiar', 'err'); }
+  },
+  'biz-del': async () => {
+    const b = state.catalog[state.biz];
+    if (!confirm(`¿Borrar "${b.name}" y todos sus productos? No se puede deshacer.`)) return;
+    try { await remove(ref(db, `catalog/${state.biz}`)); state.biz = null; toast('Local borrado'); render(); } catch { toast('No se pudo borrar', 'err'); }
+  },
+  'item-edit': t => { state.item = t.dataset.id; render(); scrollTo(0, 0); },
+  'item-cancel': () => { state.item = null; render(); },
+  'item-toggle': async t => {
+    const m = state.catalog[state.biz].menu[t.dataset.id];
+    try { await update(ref(db, `catalog/${state.biz}/menu/${t.dataset.id}`), { available: m.available === false }); } catch { toast('No se pudo cambiar', 'err'); }
+  },
+  'item-del': async t => {
+    const m = state.catalog[state.biz].menu[t.dataset.id];
+    if (!confirm(`¿Borrar "${m.name}"?`)) return;
+    try { await remove(ref(db, `catalog/${state.biz}/menu/${t.dataset.id}`)); } catch { toast('No se pudo borrar', 'err'); }
+  },
   zoom: t => { const z = document.createElement('div'); z.id = 'zoom'; z.innerHTML = `<img src="${t.src}" alt="">`; z.onclick = () => z.remove(); document.body.append(z); }
 };
 document.addEventListener('click', e => { const t = e.target.closest('[data-act]'); if (!t) return; const f = A[t.dataset.act]; if (f) f(t, e); });
 
 // Re-render sin pisar un formulario a medio completar.
-const refresh = () => { if (state.tab === 'padron' && document.activeElement && document.activeElement.closest('#f-padron')) return; render(); };
+const refresh = () => { if (document.activeElement && document.activeElement.closest('#f-padron, #f-biz, #f-item')) return; render(); };
 
 onAuthStateChanged(auth, async u => {
   subs.forEach(f => f()); subs = [];
@@ -208,4 +329,5 @@ onAuthStateChanged(auth, async u => {
   subs.push(onValue(ref(db, 'drivers'), s => { state.drivers = s.val() || {}; refresh(); }));
   subs.push(onValue(ref(db, 'padron'), s => { state.padron = s.val() || {}; refresh(); }));
   subs.push(onValue(ref(db, 'orders'), s => { state.orders = s.val() || {}; if (state.tab === 'pedidos') refresh(); }));
+  subs.push(onValue(ref(db, 'catalog'), s => { state.catalog = s.val() || {}; if (state.tab === 'locales') refresh(); }));
 });

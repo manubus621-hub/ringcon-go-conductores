@@ -91,6 +91,7 @@ function render() {
       <label class="field">Repetila<input id="pw2" type="password" autocomplete="new-password" required minlength="8"></label>
       <button class="btn primary" id="go">Verificar identidad</button>
     </form>
+    <p class="small mute" style="margin-top:12px">Al crear tu cuenta aceptás los <a class="link" href="https://ringcon-go.vercel.app/privacidad.html" target="_blank" rel="noopener">Términos y Política de privacidad</a>.</p>
     <p class="small mute" style="margin-top:16px">Tenés 5 intentos por día. · <button class="link" data-act="restart">Otro DNI</button></p>`);
   if (s === 'driver') return renderDriver();
 }
@@ -155,7 +156,7 @@ function renderDocs(d) {
   const ready = DOCS.every(x => state.shots[x.id] && state.shots[x.id].done);
   page(`${progress(3)}
     <h1>Subí tus fotos</h1>
-    <p class="sub">Las usamos solo para confirmar que sos la persona del padrón. Nadie más las ve.</p>
+    <p class="sub">Las usamos solo para confirmar que sos la persona del padrón. Nadie más las ve. Más info en los <a class="link" href="https://ringcon-go.vercel.app/privacidad.html" target="_blank" rel="noopener">Términos y Política de privacidad</a>.</p>
     ${d.status === 'rechazado' ? `<div class="notice bad"><span>⚠️</span><span><b>Tenemos que verlas de nuevo</b>${esc(d.nota || 'Alguna foto no se veía bien.')}</span></div>` : ''}
     ${idCard(d)}
     <div class="shots">${DOCS.map(x => {
