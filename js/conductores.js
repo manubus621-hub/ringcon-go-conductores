@@ -2,9 +2,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getDatabase, ref, onValue, set, remove, onDisconnect, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js';
-import { getStorage, ref as sref, uploadBytes } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
-import { FIREBASE, REGION } from './config.js';
+import { FIREBASE, API_URL } from './config.js';
 
 const DRIVER_EMAIL_DOMAIN = 'conductores.ringcongo.app';
 const HEARTBEAT = 30000;
@@ -27,12 +25,23 @@ if (FIREBASE.apiKey === 'COMPLETAR') {
   throw new Error('Falta completar js/config.js');
 }
 const fb = initializeApp(FIREBASE);
-const auth = getAuth(fb), db = getDatabase(fb), fns = getFunctions(fb, REGION), storage = getStorage(fb);
+const auth = getAuth(fb), db = getDatabase(fb);
 const call = name => async data => {
-  try { return (await httpsCallable(fns, name)(data)).data; }
-  catch (e) { throw new Error(e.message && !/^internal$/i.test(e.message) ? e.message : 'Algo salió mal. Probá de nuevo.'); }
+  const u = auth.currentUser;
+  if (!u) throw new Error('Iniciá sesión para continuar.');
+  let r;
+  try {
+    r = await fetch(API_URL + '/api/call', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + await u.getIdToken() },
+      body: JSON.stringify({ fn: name, data })
+    });
+  } catch { throw new Error('Sin conexión. Revisá tu internet.'); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Algo salió mal. Probá de nuevo.');
+  return j.data;
 };
-const api = Object.fromEntries(['driverLookup', 'driverRegister', 'driverSubmitDocs', 'driverAccept', 'driverAdvance', 'driverRelease'].map(n => [n, call(n)]));
+const api = Object.fromEntries(['driverLookup', 'driverRegister', 'driverUploadDoc', 'driverSubmitDocs', 'driverAccept', 'driverAdvance', 'driverRelease'].map(n => [n, call(n)]));
 
 const state = {
   step: 'loading', dni: '', lookup: null,
@@ -161,13 +170,17 @@ function renderDocs(d) {
     <button class="btn ghost" data-act="logout">Cerrar sesión</button>`);
 }
 
-// Achica la foto a JPEG ≤1600 px para que suba rápido con datos móviles.
+// Achica la foto a JPEG liviano: se guarda en la base y tiene que subir rápido con datos móviles.
 async function compress(file) {
   const img = await createImageBitmap(file);
-  const k = Math.min(1, 1600 / Math.max(img.width, img.height));
-  const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-  return new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.82));
+  for (const [side, q] of [[1400, 0.75], [1100, 0.65], [900, 0.55]]) {
+    const k = Math.min(1, side / Math.max(img.width, img.height));
+    const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const url = c.toDataURL('image/jpeg', q);
+    if (url.length < 850000) return url;
+  }
+  throw new Error('Foto muy pesada');
 }
 
 document.addEventListener('change', async e => {
@@ -178,8 +191,7 @@ document.addEventListener('change', async e => {
   if (prev && prev.url) URL.revokeObjectURL(prev.url);
   state.shots[doc] = { up: true, url: URL.createObjectURL(f) }; renderDriver();
   try {
-    const blob = await compress(f);
-    await uploadBytes(sref(storage, `driverDocs/${state.uid}/${doc}.jpg`), blob, { contentType: 'image/jpeg' });
+    await api.driverUploadDoc({ doc, image: await compress(f) });
     state.shots[doc] = { ...state.shots[doc], up: false, done: true };
   } catch { state.shots[doc] = { ...state.shots[doc], up: false, done: false }; toast('No pudimos subir la foto. Probá de nuevo.', 'err'); }
   renderDriver();

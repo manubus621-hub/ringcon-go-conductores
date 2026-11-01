@@ -10,7 +10,6 @@ export const FIREBASE = {
   messagingSenderId: '868935005608',
   appId: '1:868935005608:web:82b9d581ffeaf689f2d99d'
 };
-export const REGION = 'us-central1';
+// Dónde corre la API (funciones de Vercel del repo ringcon-go-app).
+export const API_URL = 'https://ringcon-go.vercel.app';
 
-// Mercado Pago → Tus integraciones → Credenciales → Public Key (empieza con APP_USR- o TEST-).
-export const MP_PUBLIC_KEY = 'COMPLETAR';
