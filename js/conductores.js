@@ -384,3 +384,4 @@ onAuthStateChanged(auth, u => {
   subs.push(onValue(ref(db, '.info/connected'), s => { if (s.val() && state.online) goOnline(); }));
 });
 render();
+if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
