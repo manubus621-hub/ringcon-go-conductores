@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.ringcongo.conductores",
+        "sha256_cert_fingerprints": ["AF:BA:3C:0A:6E:4E:32:05:87:47:47:6B:08:AB:E7:94:ED:1D:FC:78:03:6A:F8:38:6A:5C:2F:7D:77:15:83:B5"]
+      }
+    }]
