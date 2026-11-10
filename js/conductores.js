@@ -1,7 +1,7 @@
 /* App de conductores Ringcon Go */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getDatabase, ref, onValue, set, remove, onDisconnect, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
+import { getDatabase, ref, onValue, set, remove, onDisconnect, serverTimestamp, query, limitToLast } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
 import { FIREBASE, API_URL, VAPID_KEY } from './config.js';
 
 const DRIVER_EMAIL_DOMAIN = 'conductores.ringcongo.app';
@@ -76,7 +76,7 @@ const kitchenBadge = k => KITCHEN[k] ? ` <span class="badge ${KITCHEN[k][1]}">${
 const balance = () => Object.values(state.settlements).filter(st => !st.paidAt)
   .reduce((t, st) => t + (st.fromPlatform ?? (st.method === 'tarjeta' ? st.earning || 0 : 0)) - (st.toPlatform || 0), 0);
 const myOpen = () => Object.values(state.open || {}).filter(o => state.me && o.townId === state.me.townId);
-let subs = [], activeSub = null, openSub = null, beatT = null, wake = null, seenOpen = null;
+let subs = [], activeSub = null, openSub = null, openTown = null, onlineTown = null, beatT = null, wake = null, seenOpen = null;
 const brand = `<div class="brand"><svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#ff3b1f"/><g transform="translate(0 -12)" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"><path d="M200 220v-30a56 56 0 0 1 112 0v30" stroke-width="22"/><path d="M160 214H352L384 396H128Z" fill="#fff" stroke-width="36"/></g></svg><div>Ringcon Go<small>CONDUCTORES</small></div></div>`;
 const progress = n => `<div class="progress">${[1, 2, 3].map(i => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</div>`;
 const page = html => { $('#app').innerHTML = `<main class="center"><div class="panel">${brand}${html}</div></main>`; };
@@ -316,11 +316,23 @@ function drawMain() { const m = $('#main'); if (m && state.me && state.me.status
 /* ─────────── en línea / heartbeat ─────────── */
 const presRef = () => ref(db, `presence/${state.uid}`);
 async function beat() { await set(presRef(), { online: true, lastSeen: serverTimestamp() }); }
+// Lista pública de conductores en línea de su pueblo (lo que ven los clientes). Los latidos quedan aparte, en
+// presence/, que solo lee el servidor: así los clientes no reciben un mensaje por cada latido de cada conductor.
+const onlineRef = town => ref(db, `online/${town}/${state.uid}`);
+async function listOnline() {
+  const town = state.me && state.me.townId;
+  try {
+    if (onlineTown && onlineTown !== town) await remove(onlineRef(onlineTown));
+    if (town) { await onDisconnect(onlineRef(town)).remove(); await set(onlineRef(town), true); }
+    onlineTown = town || null;
+  } catch { onlineTown = null; }
+}
 async function goOnline() {
   try {
     await onDisconnect(presRef()).remove();
     await beat();
     clearInterval(beatT); beatT = setInterval(() => beat().catch(() => {}), HEARTBEAT);
+    await listOnline();
     state.online = true; seenOpen = null; watchOpen();
     enablePush(true);   // en línea: recibe avisos de pedidos aunque tenga la pantalla apagada
     try { wake = await navigator.wakeLock?.request('screen'); } catch {}
@@ -330,8 +342,9 @@ async function goOnline() {
 async function goOffline() {
   state.online = false; clearInterval(beatT);
   const oldToken = pushToken; pushToken = null;
-  if (openSub) { openSub(); openSub = null; } state.open = {};
+  if (openSub) { openSub(); openSub = null; } openTown = null; state.open = {};
   try { await remove(presRef()); await onDisconnect(presRef()).cancel(); } catch {}
+  if (onlineTown) { try { await remove(onlineRef(onlineTown)); } catch {} onlineTown = null; }
   try { await wake?.release(); } catch {} wake = null;
   drawMain();
   // Fuera de línea no recibe avisos. Se espera a que se borre: al cerrar sesión ya no habría con qué pedirlo.
@@ -350,9 +363,14 @@ function ding() {
   } catch {}
   if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
 }
+// El tablero es por pueblo: el conductor escucha (y las reglas le dejan leer) solo el suyo.
 function watchOpen() {
-  if (openSub) return;
-  openSub = onValue(ref(db, 'openOrders'), s => {
+  const town = state.me && state.me.townId;
+  if (openSub && openTown === town) return;
+  if (openSub) { openSub(); openSub = null; state.open = {}; seenOpen = null; }
+  openTown = town;
+  if (!town) return;
+  openSub = onValue(ref(db, `openOrders/${town}`), s => {
     state.open = s.val() || {};
     const ids = myOpen().map(o => o.id);
     if (seenOpen && !state.active && ids.some(id => !seenOpen.has(id))) { ding(); toast('¡Nuevo pedido disponible!'); }
@@ -407,6 +425,7 @@ onAuthStateChanged(auth, u => {
     if (!state.me) { signOut(auth); toast('Tu cuenta no tiene un perfil de conductor.', 'err'); return; }
     if (was && was !== 'aprobado' && state.me.status === 'aprobado') { ding(); toast('¡Fuiste aprobado! Ya podés ponerte en línea'); }
     if (state.me.status !== 'aprobado' && state.online) goOffline();
+    else if (state.online && openTown !== state.me.townId) { watchOpen(); listOnline(); }   // el admin lo cambió de pueblo
     render();
   }));
   subs.push(onValue(ref(db, `driverActive/${u.uid}`), s => {
@@ -417,7 +436,7 @@ onAuthStateChanged(auth, u => {
     if (id) activeSub = onValue(ref(db, `orders/${id}`), o => { state.active = o.val(); drawMain(); }, () => {});
     else drawMain();
   }, () => {}));
-  subs.push(onValue(ref(db, `settlements/${u.uid}`), s => { state.settlements = s.val() || {}; drawMain(); }, () => {}));
+  subs.push(onValue(query(ref(db, `settlements/${u.uid}`), limitToLast(500)), s => { state.settlements = s.val() || {}; drawMain(); }, () => {}));
   subs.push(onValue(ref(db, '.info/connected'), s => { if (s.val() && state.online) goOnline(); }));
 });
 // Pueblos (público, sin datos personales): sirve para mostrar el nombre del pueblo del conductor.

@@ -1,7 +1,7 @@
 /* Panel de administración Ringcon Go: padrón, verificación de conductores y pedidos */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getDatabase, ref, onValue, set, update, remove, get } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
+import { getDatabase, ref, onValue, set, update, remove, get, query, limitToLast } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
 import { FIREBASE, API_URL } from './config.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -34,11 +34,11 @@ const call = name => async data => {
   return j.data;
 };
 const api = { getDriverDocs: call('getDriverDocs'), reviewDriver: call('reviewDriver'), cancelOrder: call('cancelOrder'), syncDriver: call('syncDriver'),
-  ...Object.fromEntries(['getConfig', 'bizCreateUser', 'bizRemoveUser', 'mpConnectLink', 'mpDisconnect', 'settleDriver'].map(n => [n, call(n)])) };
+  ...Object.fromEntries(['getConfig', 'bizCreateUser', 'bizRemoveUser', 'mpConnectLink', 'mpDisconnect', 'mpInfo', 'settleDriver'].map(n => [n, call(n)])) };
 
 const ST = { docs_pendientes: ['Sin fotos', 'wait'], en_revision: ['Para revisar', 'wait'], aprobado: ['Aprobado', 'ok'], rechazado: ['Rechazado', 'bad'], suspendido: ['Suspendido', 'bad'] };
 const OS = { pago_pendiente: 'Esperando pago', nuevo: 'Buscando conductor', aceptado: 'Aceptado', en_local: 'En el local', recogido: 'En camino', entregado: 'Entregado', cancelado: 'Cancelado' };
-const state = { tab: 'solicitudes', drivers: {}, padron: {}, orders: {}, docs: {}, editing: null, catalog: {}, biz: null, item: null, towns: {}, town: null, staff: {}, split: null, mpLink: null, settlements: {} };
+const state = { tab: 'solicitudes', drivers: {}, padron: {}, orders: {}, docs: {}, editing: null, catalog: {}, biz: null, item: null, towns: {}, town: null, staff: {}, split: null, mpLink: null, mpInfo: {}, settlements: {} };
 // Pueblos: towns/{id} con name, lat, lon, km y order. Se cargan en la pestaña Pueblos.
 const townName = id => (state.towns[id] && state.towns[id].name) || '—';
 const townOpts = sel => {
@@ -53,7 +53,23 @@ const townSlug = name => String(name).normalize('NFD').replace(/[\u0300-\u036f]/
 // Acepta lo que copia Google Maps: "-25.5978, -54.5736".
 const coords = v => { const m = String(v).match(/(-?\d{1,2}(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:[.,]\d+)?)/); if (!m) return null; const lat = Number(m[1].replace(',', '.')), lon = Number(m[2].replace(',', '.')); return Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? { lat, lon } : null; };
 const num = v => Math.max(0, Math.round(Number(String(v).replace(/[^\d]/g, '')) || 0));
-let subs = [];
+let subs = [], watching = {};
+// Pedidos y liquidaciones crecen sin techo: se piden recién al abrir su pestaña, y de pedidos solo los últimos.
+const ORDERS_SHOWN = 300;
+function lazy() {
+  if (state.tab === 'pedidos' && !watching.orders) {
+    watching.orders = true;
+    subs.push(onValue(query(ref(db, 'orders'), limitToLast(ORDERS_SHOWN)), s => { state.orders = s.val() || {}; if (state.tab === 'pedidos') refresh(); }));
+  }
+  if (state.tab === 'liquidaciones' && !watching.settlements) {
+    watching.settlements = true;
+    subs.push(onValue(ref(db, 'settlements'), s => { state.settlements = s.val() || {}; if (state.tab === 'liquidaciones') refresh(); }, () => {}));
+  }
+}
+// A qué cuenta de Mercado Pago quedó conectado un local.
+async function loadMpInfo(id) {
+  try { state.mpInfo[id] = await api.mpInfo({ bizId: id }); if (state.biz === id && state.tab === 'locales') refresh(); } catch {}
+}
 
 function login() {
   $('#app').innerHTML = `<main class="center"><div class="panel">
@@ -155,7 +171,7 @@ function vPadron() {
 function vPedidos() {
   const list = Object.values(state.orders).sort((a, b) => b.createdAt - a.createdAt).slice(0, 100);
   if (!list.length) return '<div class="empty"><span class="em">📦</span>Sin pedidos todavía.</div>';
-  return `<div class="card scroll"><table><thead><tr><th>Pedido</th><th>Local</th><th>Cliente</th><th>Conductor</th><th>Total</th><th>Pago</th><th>Estado</th><th></th></tr></thead><tbody>
+  return `<p class="small mute" style="margin-bottom:10px">Se muestran los 100 pedidos más recientes.</p><div class="card scroll"><table><thead><tr><th>Pedido</th><th>Local</th><th>Cliente</th><th>Conductor</th><th>Total</th><th>Pago</th><th>Estado</th><th></th></tr></thead><tbody>
     ${list.map(o => `<tr><td>#${esc(o.id.slice(-5).toUpperCase())}<br><span class="mute small">${when(o.createdAt)}</span></td>
       <td>${esc(o.business.name)}</td><td>${esc(o.customer.name)}</td><td>${esc(o.driver ? o.driver.name : '—')}</td>
       <td>${money(o.totals.total)}</td><td>${o.payment.method === 'tarjeta' ? `💳 ${esc(o.payment.status)}` : '💵 efectivo'}${o.payment.flag ? ` <span class="badge bad">${esc(o.payment.flag)}</span>` : ''}</td>
@@ -278,7 +294,8 @@ function vLocal() {
 
 // Acceso del local a su panel de pedidos y conexión de su Mercado Pago.
 function vAccess(b) {
-  const id = state.biz, staff = Object.entries(state.staff[id] || {}), panelUrl = new URL('local.html', location.href).href;
+  const id = state.biz, staff = Object.entries(state.staff[id] || {}), panelUrl = new URL('local.html', location.href).href, info = state.mpInfo[id];
+  if (b.mp === true && !info) { state.mpInfo[id] = {}; loadMpInfo(id); }
   // El enlace se muestra hasta que la conexión cambia de estado (el dueño autorizó).
   const link = state.mpLink && state.mpLink.bizId === id && state.mpLink.was === (b.mp ?? null) ? state.mpLink.url : '';
   const wa = `Para cobrar con tarjeta en Ringcon Go, abrí este enlace con la cuenta de Mercado Pago de ${b.name} y tocá Autorizar: ${link}`;
@@ -298,8 +315,9 @@ function vAccess(b) {
     <h3 style="margin-bottom:6px">Cobro con tarjeta (Mercado Pago)</h3>
     ${state.split === false ? '<p class="small mute">El cobro por local no está activado: faltan MP_CLIENT_ID y MP_CLIENT_SECRET en Vercel. Mientras tanto, la tarjeta la cobra la cuenta de la plataforma.</p>' : `
     <p class="small mute" style="margin-bottom:12px">El dueño del local autoriza una sola vez con su cuenta de Mercado Pago. Desde ahí cada pago con tarjeta entra a su cuenta y la parte de Ringcon Go (comisión, envío y propina) se acredita sola.</p>
+    ${b.mp === true && info && info.account ? `<div class="kv"><span>Cuenta que cobra</span><b>${esc(info.account)}</b></div><p class="small mute" style="margin:6px 0 10px">Confirmá con el dueño que esa es su cuenta de Mercado Pago: ahí entran los pagos con tarjeta de este local.</p>` : ''}
     <div class="kv"><span>Estado</span><b>${b.mp === true ? '<span class="badge ok">Conectado</span>' : b.mp === false ? '<span class="badge bad">Se desconectó: hay que conectarlo de nuevo</span>' : '<span class="badge wait">Sin conectar: solo efectivo</span>'}</b></div>
-    ${link ? `<label class="field" style="margin-top:12px">Enlace para el dueño del local (sirve 7 días y una sola vez)<input id="mp-link" readonly value="${esc(link)}"></label>
+    ${link ? `<label class="field" style="margin-top:12px">Enlace para el dueño del local (sirve 2 días y una sola vez)<input id="mp-link" readonly value="${esc(link)}"></label>
     <div class="actions"><button class="btn primary" data-act="mp-copy">Copiar enlace</button><a class="btn ghost" style="color:inherit;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(wa)}">Enviar por WhatsApp</a></div>`
     : `<div class="actions"><button class="btn primary" data-act="mp-link">Generar enlace para ${b.mp == null ? 'conectar' : 'reconectar'}</button>${b.mp == null ? '' : '<button class="btn ghost" data-act="mp-off">Desconectar</button>'}</div>`}`}
   </div>`;
@@ -388,7 +406,7 @@ document.addEventListener('submit', async e => {
 
 const A = {
   logout: () => signOut(auth),
-  tab: t => { state.tab = t.dataset.tab; render(); },
+  tab: t => { state.tab = t.dataset.tab; lazy(); render(); },
   docs: async t => {
     t.disabled = true; t.textContent = 'Cargando fotos…';
     try { state.docs[t.dataset.uid] = await api.getDriverDocs({ uid: t.dataset.uid }); render(); }
@@ -419,7 +437,7 @@ const A = {
   'mp-off': async t => {
     if (!confirm('¿Desconectar Mercado Pago de este local? Va a quedar solo con efectivo hasta que se conecte de nuevo.')) return;
     t.disabled = true;
-    try { await api.mpDisconnect({ bizId: state.biz }); state.mpLink = null; toast('Mercado Pago desconectado'); } catch (e) { toast(e.message, 'err'); t.disabled = false; }
+    try { await api.mpDisconnect({ bizId: state.biz }); state.mpLink = null; delete state.mpInfo[state.biz]; toast('Mercado Pago desconectado'); } catch (e) { toast(e.message, 'err'); t.disabled = false; }
   },
   settle: async t => {
     if (!confirm('¿Ya hiciste (o recibiste) la transferencia? Las entregas de este conductor quedan marcadas como liquidadas.')) return;
@@ -469,17 +487,15 @@ document.addEventListener('click', e => { const t = e.target.closest('[data-act]
 const refresh = () => { if (document.activeElement && document.activeElement.closest('#f-padron, #f-biz, #f-item, #f-town, #f-staff')) return; render(); };
 
 onAuthStateChanged(auth, async u => {
-  subs.forEach(f => f()); subs = [];
+  subs.forEach(f => f()); subs = []; watching = {};
   if (!u || u.isAnonymous) { login(); return; }
   const ok = (await get(ref(db, `admins/${u.uid}`)).catch(() => null))?.val() === true;
   if (!ok) { await signOut(auth); toast('Esta cuenta no es administradora', 'err'); return; }
-  render();
+  render(); lazy();
   subs.push(onValue(ref(db, 'drivers'), s => { state.drivers = s.val() || {}; refresh(); }));
   subs.push(onValue(ref(db, 'padron'), s => { state.padron = s.val() || {}; refresh(); }));
-  subs.push(onValue(ref(db, 'orders'), s => { state.orders = s.val() || {}; if (state.tab === 'pedidos') refresh(); }));
   subs.push(onValue(ref(db, 'catalog'), s => { state.catalog = s.val() || {}; if (state.tab === 'locales') refresh(); }));
   subs.push(onValue(ref(db, 'towns'), s => { state.towns = s.val() || {}; refresh(); }));
   subs.push(onValue(ref(db, 'bizStaff'), s => { state.staff = s.val() || {}; if (state.tab === 'locales') refresh(); }, () => {}));
-  subs.push(onValue(ref(db, 'settlements'), s => { state.settlements = s.val() || {}; if (state.tab === 'liquidaciones') refresh(); }, () => {}));
   api.getConfig().then(c => { state.split = !!c.split; if (state.tab === 'locales') refresh(); }).catch(() => {});
 });
