@@ -2,7 +2,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getDatabase, ref, onValue, set, remove, onDisconnect, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import { FIREBASE, API_URL } from './config.js';
+import { FIREBASE, API_URL, VAPID_KEY } from './config.js';
 
 const DRIVER_EMAIL_DOMAIN = 'conductores.ringcongo.app';
 const HEARTBEAT = 30000;
@@ -41,7 +41,26 @@ const call = name => async data => {
   if (!r.ok) throw new Error(j.error || 'Algo salió mal. Probá de nuevo.');
   return j.data;
 };
-const api = Object.fromEntries(['driverLookup', 'driverRegister', 'driverUploadDoc', 'driverSubmitDocs', 'driverAccept', 'driverAdvance', 'driverRelease'].map(n => [n, call(n)]));
+const api = Object.fromEntries(['driverLookup', 'driverRegister', 'driverUploadDoc', 'driverSubmitDocs', 'driverAccept', 'driverAdvance', 'driverRelease', 'savePushToken', 'removePushToken'].map(n => [n, call(n)]));
+
+/* ─────────── avisos push ─────────── */
+// Con la app cerrada, los avisos llegan por Firebase Cloud Messaging. Queda apagado hasta cargar VAPID_KEY en config.js.
+// ask: pedir el permiso (solo después de un toque del usuario); sin ask, solo renueva el token si ya lo dio.
+let pushToken = null;
+async function enablePush(ask) {
+  try {
+    if (VAPID_KEY === 'COMPLETAR' || !('Notification' in window) || !('serviceWorker' in navigator)) return null;
+    if (Notification.permission === 'denied' || (Notification.permission !== 'granted' && !ask)) return null;
+    if (Notification.permission !== 'granted' && await Notification.requestPermission() !== 'granted') return null;
+    const { getMessaging, getToken, isSupported } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js');
+    if (!(await isSupported())) return null;
+    const reg = await Promise.race([navigator.serviceWorker.ready, new Promise((_, ko) => setTimeout(() => ko(new Error('sin service worker')), 8000))]);
+    const token = await getToken(getMessaging(fb), { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+    if (!token) return null;
+    await api.savePushToken({ token }); pushToken = token;
+    return token;
+  } catch (e) { console.warn('Avisos push no disponibles:', e && e.message); return null; }
+}
 
 const state = {
   step: 'loading', dni: '', lookup: null,
@@ -303,16 +322,20 @@ async function goOnline() {
     await beat();
     clearInterval(beatT); beatT = setInterval(() => beat().catch(() => {}), HEARTBEAT);
     state.online = true; seenOpen = null; watchOpen();
+    enablePush(true);   // en línea: recibe avisos de pedidos aunque tenga la pantalla apagada
     try { wake = await navigator.wakeLock?.request('screen'); } catch {}
   } catch { state.online = false; toast('No pudimos ponerte en línea. Revisá tu conexión.', 'err'); }
   drawMain();
 }
 async function goOffline() {
   state.online = false; clearInterval(beatT);
+  const oldToken = pushToken; pushToken = null;
   if (openSub) { openSub(); openSub = null; } state.open = {};
   try { await remove(presRef()); await onDisconnect(presRef()).cancel(); } catch {}
   try { await wake?.release(); } catch {} wake = null;
   drawMain();
+  // Fuera de línea no recibe avisos. Se espera a que se borre: al cerrar sesión ya no habría con qué pedirlo.
+  if (oldToken) await api.removePushToken({ token: oldToken }).catch(() => {});
 }
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible' && state.online && !wake) { try { wake = await navigator.wakeLock?.request('screen'); } catch {} }

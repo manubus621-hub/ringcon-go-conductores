@@ -13,3 +13,6 @@ export const FIREBASE = {
 // Dónde corre la API (funciones de Vercel del repo ringcon-go-app).
 export const API_URL = 'https://ringcon-go.vercel.app';
 
+// Avisos push: Firebase Console → Configuración del proyecto → Cloud Messaging → Certificados push web → Generar par de claves.
+// Pegá acá la clave (empieza con B). Mientras diga COMPLETAR, los avisos push quedan apagados.
+export const VAPID_KEY = 'COMPLETAR';

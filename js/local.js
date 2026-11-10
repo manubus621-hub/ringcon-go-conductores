@@ -2,7 +2,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import { FIREBASE, API_URL } from './config.js';
+import { FIREBASE, API_URL, VAPID_KEY } from './config.js';
 
 const RING_EVERY = 4;   // segundos entre alertas mientras haya pedidos sin aceptar
 const $ = (s, el = document) => el.querySelector(s);
@@ -34,7 +34,26 @@ const call = name => async data => {
   if (!r.ok) throw new Error(j.error || 'Algo salió mal. Probá de nuevo.');
   return j.data;
 };
-const api = { bizAdvance: call('bizAdvance'), bizSetOpen: call('bizSetOpen') };
+const api = { bizAdvance: call('bizAdvance'), bizSetOpen: call('bizSetOpen'), savePushToken: call('savePushToken') };
+/* ─────────── avisos push ─────────── */
+// Con la app cerrada, los avisos llegan por Firebase Cloud Messaging. Queda apagado hasta cargar VAPID_KEY en config.js.
+// ask: pedir el permiso (solo después de un toque del usuario); sin ask, solo renueva el token si ya lo dio.
+let pushToken = null;
+async function enablePush(ask) {
+  try {
+    if (VAPID_KEY === 'COMPLETAR' || !('Notification' in window) || !('serviceWorker' in navigator)) return null;
+    if (Notification.permission === 'denied' || (Notification.permission !== 'granted' && !ask)) return null;
+    if (Notification.permission !== 'granted' && await Notification.requestPermission() !== 'granted') return null;
+    const { getMessaging, getToken, isSupported } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js');
+    if (!(await isSupported())) return null;
+    const reg = await Promise.race([navigator.serviceWorker.ready, new Promise((_, ko) => setTimeout(() => ko(new Error('sin service worker')), 8000))]);
+    const token = await getToken(getMessaging(fb), { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+    if (!token) return null;
+    await api.savePushToken({ token }); pushToken = token;
+    return token;
+  } catch (e) { console.warn('Avisos push no disponibles:', e && e.message); return null; }
+}
+
 
 const state = { step: 'loading', bizId: null, biz: null, orders: {}, connected: false, wasConnected: false, offset: 0 };
 let subs = [], actx = null, wake = null, seen = null, secs = 0;
@@ -58,7 +77,7 @@ const soundOn = () => !!actx && actx.state === 'running';
 async function enableSound() {
   try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state !== 'running') await actx.resume(); } catch {}
   try { if (!wake && navigator.wakeLock) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } } catch {}
-  if (state.step === 'board') render();
+  if (state.step === 'board') { render(); if (!pushToken) enablePush(true); }   // respaldo: aviso del sistema si la pestaña queda atrás
 }
 function beep() {
   if (!soundOn()) return;
@@ -209,3 +228,4 @@ onAuthStateChanged(auth, u => {
   }, () => { toast('Esta cuenta no es de un local.', 'err'); signOut(auth); }));
 });
 render();
+if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
