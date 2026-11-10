@@ -37,7 +37,14 @@ const api = { getDriverDocs: call('getDriverDocs'), reviewDriver: call('reviewDr
 
 const ST = { docs_pendientes: ['Sin fotos', 'wait'], en_revision: ['Para revisar', 'wait'], aprobado: ['Aprobado', 'ok'], rechazado: ['Rechazado', 'bad'], suspendido: ['Suspendido', 'bad'] };
 const OS = { pago_pendiente: 'Esperando pago', nuevo: 'Buscando conductor', aceptado: 'Aceptado', en_local: 'En el local', recogido: 'En camino', entregado: 'Entregado', cancelado: 'Cancelado' };
-const state = { tab: 'solicitudes', drivers: {}, padron: {}, orders: {}, docs: {}, editing: null, catalog: {}, biz: null, item: null };
+const state = { tab: 'solicitudes', drivers: {}, padron: {}, orders: {}, docs: {}, editing: null, catalog: {}, biz: null, item: null, towns: {} };
+// Pueblos: se cargan en la base (towns/{id}: name, lat, lon, km, order). Acá solo se eligen.
+const townName = id => (state.towns[id] && state.towns[id].name) || '—';
+const townOpts = sel => {
+  const list = Object.entries(state.towns).map(([id, t]) => ({ id, ...t })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  return list.length ? list.map(t => `<option value="${esc(t.id)}" ${t.id === sel ? 'selected' : ''}>${esc(t.name)}</option>`).join('')
+    : '<option value="">No hay pueblos cargados</option>';
+};
 const byOrder = o => Object.entries(o || {}).map(([id, v]) => ({ ...v, id })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 const slug = s => (String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'x') + '-' + Math.random().toString(36).slice(2, 6);
 const num = v => Math.max(0, Math.round(Number(String(v).replace(/[^\d]/g, '')) || 0));
@@ -127,13 +134,14 @@ function vPadron() {
         <label class="field">Teléfono<input id="p-tel" type="tel" maxlength="20" value="${esc(e.telefono || '')}"></label>
         <label class="field">Licencia vence<input id="p-lic" type="date" required value="${lic}"></label>
       </div>
+      <label class="field">Pueblo donde trabaja<select id="p-town" required>${townOpts(e.townId)}</select></label>
       <label class="field" style="display:flex;gap:10px;align-items:center"><input id="p-act" type="checkbox" style="width:auto;margin:0" ${e.activo === false ? '' : 'checked'}> Habilitado</label>
       <div class="actions"><button class="btn primary">Guardar</button>${state.editing ? '<button type="button" class="btn ghost" data-act="cancel-edit">Cancelar</button>' : ''}</div>
     </form>
     <p class="small mute" style="margin-top:12px">Cargá los datos exactamente como figuran en el DNI: el conductor tiene que confirmar apellido y fecha de nacimiento para crear su cuenta.</p>
   </div>
   ${list.length ? `<div class="card scroll"><table><thead><tr><th>DNI</th><th>Nombre</th><th>Licencia</th><th>Cuenta</th><th></th></tr></thead><tbody>
-    ${list.map(([dni, p]) => `<tr><td>${esc(dni)}</td><td>${esc(p.apellido)}, ${esc(p.nombre)}${p.activo === false ? ' <span class="badge bad">baja</span>' : ''}</td><td>${date(p.licenciaVence)}</td>
+    ${list.map(([dni, p]) => `<tr><td>${esc(dni)}</td><td>${esc(p.apellido)}, ${esc(p.nombre)}${p.activo === false ? ' <span class="badge bad">baja</span>' : ''}<br><span class="mute small">${esc(townName(p.townId))}</span></td><td>${date(p.licenciaVence)}</td>
       <td>${p.uid ? '<span class="badge ok">Creada</span>' : '<span class="mute small">Sin cuenta</span>'}</td>
       <td style="white-space:nowrap"><button class="btn ghost sm" data-act="edit" data-dni="${esc(dni)}">Editar</button>${p.uid ? '' : ` <button class="btn ghost sm" data-act="del" data-dni="${esc(dni)}">Borrar</button>`}</td></tr>`).join('')}
   </tbody></table></div>` : ''}`;
@@ -159,6 +167,7 @@ function vLocales() {
   ${list.length ? list.map(b => `<div class="card">
     <span class="badge ${b.open === false ? 'bad' : 'ok'}">${b.open === false ? 'Cerrado' : 'Abierto'}</span>
     <h3>${esc(b.emoji || '🏪')} ${esc(b.name)}</h3>
+    <div class="kv"><span>Pueblo</span><b>${esc(townName(b.townId))}</b></div>
     <div class="kv"><span>Rubro</span><b>${esc(b.cat || '—')}</b></div>
     <div class="kv"><span>Envío</span><b>${money(b.fee)}</b></div>
     <div class="kv"><span>Productos</span><b>${Object.keys(b.menu || {}).length}</b></div>
@@ -179,6 +188,7 @@ function vLocal() {
         <label class="field">Nombre<input id="b-name" required maxlength="60" value="${esc(b.name || '')}" placeholder="Ej: Pizzería Don José"></label>
         <label class="field">Rubro<input id="b-cat" required maxlength="30" value="${esc(b.cat || '')}" placeholder="Ej: Pizza"></label>
       </div>
+      <label class="field">Pueblo<select id="b-town" required>${townOpts(b.townId)}</select></label>
       <div class="row2">
         <label class="field">Emoji<input id="b-emoji" maxlength="4" value="${esc(b.emoji || '')}" placeholder="🍕"></label>
         <label class="field">Demora estimada<input id="b-eta" maxlength="20" value="${esc(b.eta || '')}" placeholder="25–35 min"></label>
@@ -222,8 +232,10 @@ function vLocal() {
 async function saveBiz() {
   const name = $('#b-name').value.trim(), cat = $('#b-cat').value.trim();
   if (name.length < 2 || !cat) { toast('Completá nombre y rubro', 'err'); return; }
+  const townId = $('#b-town').value;
+  if (!townId) { toast('Elegí el pueblo del local', 'err'); return; }
   const data = {
-    name, cat, emoji: $('#b-emoji').value.trim() || '🍽️', eta: $('#b-eta').value.trim() || '25–35 min',
+    name, cat, townId, emoji: $('#b-emoji').value.trim() || '🍽️', eta: $('#b-eta').value.trim() || '25–35 min',
     fee: num($('#b-fee').value), order: num($('#b-order').value), open: $('#b-open').checked
   };
   const isNew = state.biz === 'new', id = isNew ? slug(name) : state.biz;
@@ -256,9 +268,11 @@ document.addEventListener('submit', async e => {
       nombre: $('#p-nom').value.trim(), apellido: $('#p-ape').value.trim(), nacimiento: $('#p-nac').value,
       telefono: $('#p-tel').value.trim(), vehiculo: $('#p-veh').value.trim(), patente: $('#p-pat').value.trim().toUpperCase(),
       licenciaVence: new Date($('#p-lic').value + 'T23:59:59').getTime(), activo: $('#p-act').checked,
+      townId: $('#p-town').value,
       ...(prev.uid ? { uid: prev.uid } : {})
     };
     if (!/^\d{7,8}$/.test(dni)) { toast('El DNI tiene 7 u 8 números', 'err'); return; }
+    if (!p.townId) { toast('Elegí el pueblo donde trabaja', 'err'); return; }
     if (!state.editing && state.padron[dni]) { toast('Ese DNI ya está en el padrón', 'err'); return; }
     try { await set(ref(db, `padron/${dni}`), p); state.editing = null; toast('Guardado'); render(); }
     catch { toast('No se pudo guardar. Revisá los datos.', 'err'); }
@@ -330,4 +344,5 @@ onAuthStateChanged(auth, async u => {
   subs.push(onValue(ref(db, 'padron'), s => { state.padron = s.val() || {}; refresh(); }));
   subs.push(onValue(ref(db, 'orders'), s => { state.orders = s.val() || {}; if (state.tab === 'pedidos') refresh(); }));
   subs.push(onValue(ref(db, 'catalog'), s => { state.catalog = s.val() || {}; if (state.tab === 'locales') refresh(); }));
+  subs.push(onValue(ref(db, 'towns'), s => { state.towns = s.val() || {}; refresh(); }));
 });

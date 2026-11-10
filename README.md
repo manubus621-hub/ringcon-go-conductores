@@ -8,6 +8,14 @@ La API (funciones de Vercel) y las reglas de la base están en
 [ringcon-go-app](https://github.com/manubus621-hub/ringcon-go-app). La configuración de Firebase en `js/config.js`
 tiene que ser igual en los dos repos, y `API_URL` tiene que apuntar al dominio de Vercel de la app de clientes.
 
+## Pueblos
+
+- Cada conductor tiene un pueblo (`townId`), que viene del padrón al registrarse. El panel solo muestra y deja
+  tomar los pedidos de ese pueblo; la API lo vuelve a verificar al aceptar.
+- Si cambian el pueblo de alguien en el padrón, el cambio se aplica cuando el admin revisa su cuenta.
+- Los pueblos se cargan en la base (`towns/{id}`, ver el README de [ringcon-go-app](https://github.com/manubus621-hub/ringcon-go-app)).
+  El admin los elige al cargar conductores y locales.
+
 ## Cómo se verifica a un conductor
 
 1. **Padrón:** desde `admin.html` cargás a cada conductor habilitado con DNI, nombre, apellido,

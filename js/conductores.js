@@ -46,8 +46,11 @@ const api = Object.fromEntries(['driverLookup', 'driverRegister', 'driverUploadD
 const state = {
   step: 'loading', dni: '', lookup: null,
   uid: null, me: null, online: false, open: {}, activeId: null, active: null, settlements: {},
-  shots: {}, busy: false
+  shots: {}, busy: false, towns: {}
 };
+// Pedidos publicados para el pueblo del conductor (el tablero tiene los de todos los pueblos).
+const myTownName = () => (state.me && state.towns[state.me.townId] && state.towns[state.me.townId].name) || 'tu pueblo';
+const myOpen = () => Object.values(state.open || {}).filter(o => state.me && o.townId === state.me.townId);
 let subs = [], activeSub = null, openSub = null, beatT = null, wake = null, seenOpen = null;
 const brand = `<div class="brand"><svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#ff3b1f"/><g transform="translate(0 -12)" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"><path d="M200 220v-30a56 56 0 0 1 112 0v30" stroke-width="22"/><path d="M160 214H352L384 396H128Z" fill="#fff" stroke-width="36"/></g></svg><div>Ringcon Go<small>CONDUCTORES</small></div></div>`;
 const progress = n => `<div class="progress">${[1, 2, 3].map(i => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</div>`;
@@ -59,7 +62,7 @@ function render() {
   if (s === 'loading') { $('#app').innerHTML = '<div class="loading">Cargando…</div>'; return; }
   if (s === 'dni') return page(`${progress(1)}
     <h1>Ingresá tu DNI</h1>
-    <p class="sub">Lo buscamos en el padrón de conductores habilitados de Rincón de los Sauces.</p>
+    <p class="sub">Lo buscamos en el padrón de conductores habilitados.</p>
     <form id="f-dni">
       <label class="field dni">Número de documento<input id="dni" inputmode="numeric" autocomplete="off" placeholder="30123456" maxlength="10" value="${esc(state.dni)}" required></label>
       <button class="btn primary" id="go">Buscar</button>
@@ -228,8 +231,8 @@ function renderPanel(d) {
 
 function renderOpen() {
   if (!state.online) return `<div class="empty"><span class="em">🛵</span>Ponete <b>EN LÍNEA</b> arriba para recibir pedidos en tiempo real.</div>`;
-  const list = Object.values(state.open).sort((a, b) => a.createdAt - b.createdAt);
-  if (!list.length) return `<div class="empty"><span class="pulse"></span>Buscando pedidos en Rincón de los Sauces…</div>`;
+  const list = myOpen().sort((a, b) => a.createdAt - b.createdAt);
+  if (!list.length) return `<div class="empty"><span class="pulse"></span>Buscando pedidos en ${esc(myTownName())}…</div>`;
   return `<h2 style="font-size:24px;margin-bottom:14px">Pedidos disponibles (${list.length})</h2>
   ${list.map(o => {
     const card = o.method === 'tarjeta';
@@ -253,7 +256,8 @@ const STEP_I = { aceptado: 1, en_local: 2, recogido: 3 };
 
 function renderActive(o) {
   const card = o.payment.method === 'tarjeta', n = NEXT[o.status], t = o.totals;
-  const maps = o.address.lat ? `https://www.google.com/maps/dir/?api=1&destination=${o.address.lat},${o.address.lon}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.address.text + ', Rincón de los Sauces, Neuquén')}`;
+  const townName = (state.towns[o.townId] && state.towns[o.townId].name) || myTownName();
+  const maps = o.address.lat ? `https://www.google.com/maps/dir/?api=1&destination=${o.address.lat},${o.address.lon}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.address.text + ', ' + townName)}`;
   const phone = String(o.customer.phone || '').replace(/[^\d+]/g, '');
   return `<h2 style="font-size:24px;margin-bottom:14px">Pedido en curso · #${esc(o.id.slice(-5).toUpperCase())}</h2>
   <div class="card active">
@@ -317,7 +321,7 @@ function watchOpen() {
   if (openSub) return;
   openSub = onValue(ref(db, 'openOrders'), s => {
     state.open = s.val() || {};
-    const ids = Object.keys(state.open);
+    const ids = myOpen().map(o => o.id);
     if (seenOpen && !state.active && ids.some(id => !seenOpen.has(id))) { ding(); toast('¡Nuevo pedido disponible!'); }
     seenOpen = new Set(ids);
     if (!state.active) drawMain();
@@ -383,5 +387,7 @@ onAuthStateChanged(auth, u => {
   subs.push(onValue(ref(db, `settlements/${u.uid}`), s => { state.settlements = s.val() || {}; drawMain(); }, () => {}));
   subs.push(onValue(ref(db, '.info/connected'), s => { if (s.val() && state.online) goOnline(); }));
 });
+// Pueblos (público, sin datos personales): sirve para mostrar el nombre del pueblo del conductor.
+onValue(ref(db, 'towns'), s => { state.towns = s.val() || {}; drawMain(); }, () => {});
 render();
 if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
