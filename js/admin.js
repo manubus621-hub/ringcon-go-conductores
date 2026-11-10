@@ -279,7 +279,8 @@ function vLocal() {
 // Acceso del local a su panel de pedidos y conexión de su Mercado Pago.
 function vAccess(b) {
   const id = state.biz, staff = Object.entries(state.staff[id] || {}), panelUrl = new URL('local.html', location.href).href;
-  const link = state.mpLink && state.mpLink.bizId === id ? state.mpLink.url : '';
+  // El enlace se muestra hasta que la conexión cambia de estado (el dueño autorizó).
+  const link = state.mpLink && state.mpLink.bizId === id && state.mpLink.was === (b.mp ?? null) ? state.mpLink.url : '';
   const wa = `Para cobrar con tarjeta en Ringcon Go, abrí este enlace con la cuenta de Mercado Pago de ${b.name} y tocá Autorizar: ${link}`;
   return `<div class="card">
     <h3 style="margin-bottom:6px">Panel de pedidos del local</h3>
@@ -409,7 +410,7 @@ const A = {
   },
   'mp-link': async t => {
     t.disabled = true;
-    try { state.mpLink = { bizId: state.biz, url: (await api.mpConnectLink({ bizId: state.biz })).url }; render(); } catch (e) { toast(e.message, 'err'); t.disabled = false; }
+    try { state.mpLink = { bizId: state.biz, was: (state.catalog[state.biz] || {}).mp ?? null, url: (await api.mpConnectLink({ bizId: state.biz })).url }; render(); } catch (e) { toast(e.message, 'err'); t.disabled = false; }
   },
   'mp-copy': async () => {
     const i = $('#mp-link');
