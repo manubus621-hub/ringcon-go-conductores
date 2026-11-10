@@ -10,11 +10,13 @@ tiene que ser igual en los dos repos, y `API_URL` tiene que apuntar al dominio d
 
 ## Pueblos
 
-- Cada conductor tiene un pueblo (`townId`), que viene del padrón al registrarse. El panel solo muestra y deja
-  tomar los pedidos de ese pueblo; la API lo vuelve a verificar al aceptar.
-- Si cambian el pueblo de alguien en el padrón, el cambio se aplica cuando el admin revisa su cuenta.
-- Los pueblos se cargan en la base (`towns/{id}`, ver el README de [ringcon-go-app](https://github.com/manubus621-hub/ringcon-go-app)).
-  El admin los elige al cargar conductores y locales.
+- `admin.html` → pestaña **Pueblos**: alta y edición de pueblos (nombre, centro y radio de entrega). Un pueblo
+  con locales o conductores no se puede borrar.
+- Cada local y cada DNI del padrón tienen un pueblo. Los que todavía no lo tienen aparecen con el aviso
+  "Falta elegir pueblo".
+- El conductor solo ve y toma pedidos de su pueblo; la API lo vuelve a verificar al aceptar.
+- El padrón manda: al guardar un DNI que ya tiene cuenta, el pueblo y el vencimiento de la licencia pasan a la
+  cuenta del conductor en el momento.
 
 ## Cómo se verifica a un conductor
 

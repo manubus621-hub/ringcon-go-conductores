@@ -33,20 +33,24 @@ const call = name => async data => {
   if (!r.ok) throw new Error(j.error || 'Algo salió mal. Probá de nuevo.');
   return j.data;
 };
-const api = { getDriverDocs: call('getDriverDocs'), reviewDriver: call('reviewDriver'), cancelOrder: call('cancelOrder') };
+const api = { getDriverDocs: call('getDriverDocs'), reviewDriver: call('reviewDriver'), cancelOrder: call('cancelOrder'), syncDriver: call('syncDriver') };
 
 const ST = { docs_pendientes: ['Sin fotos', 'wait'], en_revision: ['Para revisar', 'wait'], aprobado: ['Aprobado', 'ok'], rechazado: ['Rechazado', 'bad'], suspendido: ['Suspendido', 'bad'] };
 const OS = { pago_pendiente: 'Esperando pago', nuevo: 'Buscando conductor', aceptado: 'Aceptado', en_local: 'En el local', recogido: 'En camino', entregado: 'Entregado', cancelado: 'Cancelado' };
-const state = { tab: 'solicitudes', drivers: {}, padron: {}, orders: {}, docs: {}, editing: null, catalog: {}, biz: null, item: null, towns: {} };
-// Pueblos: se cargan en la base (towns/{id}: name, lat, lon, km, order). Acá solo se eligen.
+const state = { tab: 'solicitudes', drivers: {}, padron: {}, orders: {}, docs: {}, editing: null, catalog: {}, biz: null, item: null, towns: {}, town: null };
+// Pueblos: towns/{id} con name, lat, lon, km y order. Se cargan en la pestaña Pueblos.
 const townName = id => (state.towns[id] && state.towns[id].name) || '—';
 const townOpts = sel => {
   const list = Object.entries(state.towns).map(([id, t]) => ({ id, ...t })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   return list.length ? list.map(t => `<option value="${esc(t.id)}" ${t.id === sel ? 'selected' : ''}>${esc(t.name)}</option>`).join('')
-    : '<option value="">No hay pueblos cargados</option>';
+    : '<option value="">Primero cargá un pueblo en la pestaña Pueblos</option>';
 };
 const byOrder = o => Object.entries(o || {}).map(([id, v]) => ({ ...v, id })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 const slug = s => (String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'x') + '-' + Math.random().toString(36).slice(2, 6);
+const noTown = id => state.towns[id] ? '' : ' <span class="badge bad">Falta elegir pueblo</span>';
+const townSlug = name => String(name).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+// Acepta lo que copia Google Maps: "-25.5978, -54.5736".
+const coords = v => { const m = String(v).match(/(-?\d{1,2}(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:[.,]\d+)?)/); if (!m) return null; const lat = Number(m[1].replace(',', '.')), lon = Number(m[2].replace(',', '.')); return Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? { lat, lon } : null; };
 const num = v => Math.max(0, Math.round(Number(String(v).replace(/[^\d]/g, '')) || 0));
 let subs = [];
 
@@ -62,13 +66,13 @@ function login() {
 
 function render() {
   const pend = Object.values(state.drivers).filter(d => d.status === 'en_revision').length;
-  const tabs = [['solicitudes', `Solicitudes${pend ? ` (${pend})` : ''}`], ['conductores', 'Conductores'], ['padron', 'Padrón'], ['locales', 'Locales'], ['pedidos', 'Pedidos']];
+  const tabs = [['solicitudes', `Solicitudes${pend ? ` (${pend})` : ''}`], ['conductores', 'Conductores'], ['padron', 'Padrón'], ['locales', 'Locales'], ['pueblos', 'Pueblos'], ['pedidos', 'Pedidos']];
   $('#app').innerHTML = `
   <header class="top"><div class="top-in"><div class="who"><b>Ringcon Go · Admin</b><small>${esc(auth.currentUser.email)}</small></div>
     <button class="icon-btn" data-act="logout" aria-label="Cerrar sesión">⎋</button></div></header>
   <main class="wrap">
     <nav class="tabs" role="tablist">${tabs.map(([k, l]) => `<button class="tab" role="tab" aria-selected="${state.tab === k}" data-act="tab" data-tab="${k}">${l}</button>`).join('')}</nav>
-    <section id="view">${({ solicitudes: vSolicitudes, conductores: vConductores, padron: vPadron, locales: vLocales, pedidos: vPedidos })[state.tab]()}</section>
+    <section id="view">${({ solicitudes: vSolicitudes, conductores: vConductores, padron: vPadron, locales: vLocales, pueblos: vPueblos, pedidos: vPedidos })[state.tab]()}</section>
   </main>`;
 }
 
@@ -141,7 +145,7 @@ function vPadron() {
     <p class="small mute" style="margin-top:12px">Cargá los datos exactamente como figuran en el DNI: el conductor tiene que confirmar apellido y fecha de nacimiento para crear su cuenta.</p>
   </div>
   ${list.length ? `<div class="card scroll"><table><thead><tr><th>DNI</th><th>Nombre</th><th>Licencia</th><th>Cuenta</th><th></th></tr></thead><tbody>
-    ${list.map(([dni, p]) => `<tr><td>${esc(dni)}</td><td>${esc(p.apellido)}, ${esc(p.nombre)}${p.activo === false ? ' <span class="badge bad">baja</span>' : ''}<br><span class="mute small">${esc(townName(p.townId))}</span></td><td>${date(p.licenciaVence)}</td>
+    ${list.map(([dni, p]) => `<tr><td>${esc(dni)}</td><td>${esc(p.apellido)}, ${esc(p.nombre)}${p.activo === false ? ' <span class="badge bad">baja</span>' : ''}<br><span class="mute small">${esc(townName(p.townId))}</span>${noTown(p.townId)}</td><td>${date(p.licenciaVence)}</td>
       <td>${p.uid ? '<span class="badge ok">Creada</span>' : '<span class="mute small">Sin cuenta</span>'}</td>
       <td style="white-space:nowrap"><button class="btn ghost sm" data-act="edit" data-dni="${esc(dni)}">Editar</button>${p.uid ? '' : ` <button class="btn ghost sm" data-act="del" data-dni="${esc(dni)}">Borrar</button>`}</td></tr>`).join('')}
   </tbody></table></div>` : ''}`;
@@ -159,6 +163,47 @@ function vPedidos() {
   </tbody></table></div>`;
 }
 
+/* ─────────── pueblos ─────────── */
+function vPueblos() {
+  const list = byOrder(state.towns), e = state.town && state.towns[state.town] ? { id: state.town, ...state.towns[state.town] } : null;
+  const uses = id => ({ locales: Object.values(state.catalog).filter(b => b.townId === id).length, padron: Object.values(state.padron).filter(p => p.townId === id).length });
+  return `<div class="card">
+    <h3 style="margin-bottom:12px">${e ? 'Editar pueblo' : 'Agregar pueblo'}</h3>
+    <form id="f-town">
+      <div class="row2">
+        <label class="field">Nombre<input id="t-name" required minlength="2" maxlength="60" value="${esc(e ? e.name : '')}" placeholder="Ej: Puerto Iguazú"></label>
+        <label class="field">Radio de entrega (km)<input id="t-km" inputmode="decimal" required value="${esc(e ? e.km : '')}" placeholder="10"></label>
+      </div>
+      <label class="field">Centro del pueblo (latitud, longitud)<input id="t-center" required value="${e ? esc(`${e.lat}, ${e.lon}`) : ''}" placeholder="-25.5978, -54.5736"></label>
+      <p class="small mute" style="margin:-6px 0 14px">En Google Maps, mantené apretado sobre el centro del pueblo (clic derecho en la computadora) y copiá las coordenadas. Se entrega hasta esa distancia del centro.</p>
+      <div class="actions"><button class="btn primary">${e ? 'Guardar cambios' : 'Agregar pueblo'}</button>${e ? '<button type="button" class="btn ghost" data-act="town-cancel">Cancelar</button>' : ''}</div>
+    </form>
+  </div>
+  ${list.length ? list.map(t => { const u = uses(t.id); return `<div class="card">
+    <h3>📍 ${esc(t.name)}</h3>
+    <div class="kv"><span>Centro</span><b>${esc(t.lat)}, ${esc(t.lon)} · <a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.lat + ',' + t.lon)}">ver mapa</a></b></div>
+    <div class="kv"><span>Radio de entrega</span><b>${esc(t.km)} km</b></div>
+    <div class="kv"><span>Locales</span><b>${u.locales}</b></div>
+    <div class="kv"><span>Conductores en el padrón</span><b>${u.padron}</b></div>
+    <div class="actions">
+      <button class="btn primary" data-act="town-edit" data-id="${esc(t.id)}">Editar</button>
+      ${u.locales || u.padron ? '' : `<button class="btn ghost" data-act="town-del" data-id="${esc(t.id)}">Borrar</button>`}
+    </div></div>`; }).join('') : '<div class="empty"><span class="em">📍</span>Todavía no hay pueblos. Agregá el primero para poder cargar locales y conductores.</div>'}`;
+}
+
+async function saveTown() {
+  const name = $('#t-name').value.trim().replace(/\s+/g, ' '), c = coords($('#t-center').value), km = Number($('#t-km').value.replace(',', '.'));
+  if (name.length < 2) { toast('Escribí el nombre del pueblo', 'err'); return; }
+  if (!c) { toast('Pegá el centro como latitud, longitud. Ej: -25.5978, -54.5736', 'err'); return; }
+  if (!(km > 0 && km <= 100)) { toast('El radio tiene que estar entre 1 y 100 km', 'err'); return; }
+  const isNew = !state.town, id = isNew ? townSlug(name) : state.town;
+  if (!id) { toast('El nombre tiene que tener letras o números', 'err'); return; }
+  if (isNew && state.towns[id]) { toast('Ese pueblo ya está cargado', 'err'); return; }
+  const order = isNew ? Object.values(state.towns).reduce((m, t) => Math.max(m, (t.order ?? 0) + 1), 0) : (state.towns[id].order ?? 0);
+  try { await set(ref(db, `towns/${id}`), { name, lat: c.lat, lon: c.lon, km, order }); state.town = null; toast(isNew ? 'Pueblo agregado' : 'Guardado'); render(); }
+  catch { toast('No se pudo guardar. Revisá los datos.', 'err'); }
+}
+
 /* ─────────── locales y productos ─────────── */
 function vLocales() {
   if (state.biz) return vLocal();
@@ -167,7 +212,7 @@ function vLocales() {
   ${list.length ? list.map(b => `<div class="card">
     <span class="badge ${b.open === false ? 'bad' : 'ok'}">${b.open === false ? 'Cerrado' : 'Abierto'}</span>
     <h3>${esc(b.emoji || '🏪')} ${esc(b.name)}</h3>
-    <div class="kv"><span>Pueblo</span><b>${esc(townName(b.townId))}</b></div>
+    <div class="kv"><span>Pueblo</span><b>${esc(townName(b.townId))}${noTown(b.townId)}</b></div>
     <div class="kv"><span>Rubro</span><b>${esc(b.cat || '—')}</b></div>
     <div class="kv"><span>Envío</span><b>${money(b.fee)}</b></div>
     <div class="kv"><span>Productos</span><b>${Object.keys(b.menu || {}).length}</b></div>
@@ -274,9 +319,15 @@ document.addEventListener('submit', async e => {
     if (!/^\d{7,8}$/.test(dni)) { toast('El DNI tiene 7 u 8 números', 'err'); return; }
     if (!p.townId) { toast('Elegí el pueblo donde trabaja', 'err'); return; }
     if (!state.editing && state.padron[dni]) { toast('Ese DNI ya está en el padrón', 'err'); return; }
-    try { await set(ref(db, `padron/${dni}`), p); state.editing = null; toast('Guardado'); render(); }
-    catch { toast('No se pudo guardar. Revisá los datos.', 'err'); }
+    try { await set(ref(db, `padron/${dni}`), p); }
+    catch { toast('No se pudo guardar. Revisá los datos.', 'err'); return; }
+    state.editing = null; render();
+    // Si ya tiene cuenta, el pueblo y la licencia del padrón pasan a su cuenta.
+    if (!p.uid) { toast('Guardado'); return; }
+    try { await api.syncDriver({ dni }); toast('Guardado. La cuenta del conductor ya está actualizada.'); }
+    catch { toast('Guardado en el padrón, pero no se pudo actualizar la cuenta del conductor. Probá guardar de nuevo.', 'err'); }
   }
+  if (e.target.id === 'f-town') await saveTown();
   if (e.target.id === 'f-biz') await saveBiz();
   if (e.target.id === 'f-item') await saveItem();
 });
@@ -298,6 +349,12 @@ const A = {
     catch (e) { toast(e.message, 'err'); t.disabled = false; }
   },
   edit: t => { state.editing = t.dataset.dni; render(); scrollTo(0, 0); },
+  'town-edit': t => { state.town = t.dataset.id; render(); scrollTo(0, 0); },
+  'town-cancel': () => { state.town = null; render(); },
+  'town-del': async t => {
+    if (!confirm(`¿Borrar el pueblo ${townName(t.dataset.id)}?`)) return;
+    try { await remove(ref(db, `towns/${t.dataset.id}`)); toast('Pueblo borrado'); } catch { toast('No se pudo borrar', 'err'); }
+  },
   'cancel-edit': () => { state.editing = null; render(); },
   del: async t => { if (!confirm(`¿Borrar el DNI ${t.dataset.dni} del padrón?`)) return; try { await remove(ref(db, `padron/${t.dataset.dni}`)); } catch { toast('No se pudo borrar', 'err'); } },
   'cancel-order': async t => {
@@ -332,7 +389,7 @@ const A = {
 document.addEventListener('click', e => { const t = e.target.closest('[data-act]'); if (!t) return; const f = A[t.dataset.act]; if (f) f(t, e); });
 
 // Re-render sin pisar un formulario a medio completar.
-const refresh = () => { if (document.activeElement && document.activeElement.closest('#f-padron, #f-biz, #f-item')) return; render(); };
+const refresh = () => { if (document.activeElement && document.activeElement.closest('#f-padron, #f-biz, #f-item, #f-town')) return; render(); };
 
 onAuthStateChanged(auth, async u => {
   subs.forEach(f => f()); subs = [];

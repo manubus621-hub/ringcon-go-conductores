@@ -220,6 +220,7 @@ function renderPanel(d) {
   </div></header>
   <main class="wrap">
     ${expired ? `<div class="notice bad"><span>⛔</span><span><b>Licencia vencida (${date(d.licenciaVence)})</b>No podés ponerte en línea hasta actualizarla con la administración.</span></div>` : ''}
+    ${d.townId ? '' : `<div class="notice warn"><span>📍</span><span><b>Tu cuenta todavía no tiene pueblo asignado</b>Avisale a la administración: hasta que te asignen uno no vas a ver pedidos.</span></div>`}
     <div class="stats">
       <div class="stat"><small>Entregas hoy</small><b>${st.n}</b></div>
       <div class="stat"><small>Ganancia hoy</small><b>${money(st.earning)}</b></div>
@@ -231,6 +232,7 @@ function renderPanel(d) {
 
 function renderOpen() {
   if (!state.online) return `<div class="empty"><span class="em">🛵</span>Ponete <b>EN LÍNEA</b> arriba para recibir pedidos en tiempo real.</div>`;
+  if (!state.me.townId) return `<div class="empty"><span class="em">📍</span>Cuando la administración te asigne un pueblo, los pedidos van a aparecer acá.</div>`;
   const list = myOpen().sort((a, b) => a.createdAt - b.createdAt);
   if (!list.length) return `<div class="empty"><span class="pulse"></span>Buscando pedidos en ${esc(myTownName())}…</div>`;
   return `<h2 style="font-size:24px;margin-bottom:14px">Pedidos disponibles (${list.length})</h2>
