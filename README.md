@@ -2,7 +2,13 @@
 
 - `index.html`: panel de conductores. Pantalla completa, switch En línea/Offline con presencia en
   tiempo real, toma de pedidos y flujo Aceptado → En el local → Retirado → Entregado.
-- `admin.html`: padrón de conductores habilitados, revisión de identidad y control de pedidos.
+- `admin.html`: padrón de conductores habilitados, revisión de identidad, pueblos, locales (con acceso a su panel y
+  conexión de Mercado Pago), control de pedidos y liquidaciones de conductores.
+- `local.html`: panel de cada local. Los pedidos llegan en vivo con alerta sonora que se repite hasta atenderlos;
+  el local marca Aceptar → En preparación → Listo para despachar, y puede abrirse o cerrarse solo.
+
+Los pasos para ponerlo en marcha están en
+[PUESTA-EN-MARCHA.md](https://github.com/manubus621-hub/ringcon-go-app/blob/main/PUESTA-EN-MARCHA.md).
 
 La API (funciones de Vercel) y las reglas de la base están en
 [ringcon-go-app](https://github.com/manubus621-hub/ringcon-go-app). La configuración de Firebase en `js/config.js`
