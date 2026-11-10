@@ -136,3 +136,28 @@ th{color:var(--mute);font-weight:600;font-size:12px}
 .spin{width:22px;height:22px;border-radius:50%;border:3px solid rgba(255,255,255,.4);border-top-color:#fff;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* ─────────── panel del local (local.html) ─────────── */
+.top-in.wide,.wrap.wide{max-width:1280px}
+.board{display:grid;gap:18px;grid-template-columns:1fr;align-items:start;margin-bottom:28px}
+@media(min-width:900px){.board{grid-template-columns:repeat(3,1fr)}}
+.col h2,.done h2{font-size:20px;margin:6px 0 12px;display:flex;align-items:center;gap:8px}
+.count{font:800 13px system-ui,sans-serif;letter-spacing:0;background:var(--ink);color:#fff;border-radius:99px;padding:3px 10px}
+.count.on{background:var(--brand)}
+.none{border:1.5px dashed #e4e4e7;border-radius:var(--r);padding:28px 12px;text-align:center;color:var(--mute);font-size:14px}
+.order .o-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px;color:var(--mute);font-size:14px}
+.order .o-head b{font:800 24px var(--display);color:var(--ink)}
+.order .items{list-style:none;margin:10px 0;font-size:18px}
+.order .items li{padding:6px 0;border-bottom:1px solid var(--line)}
+.order .items li:last-child{border-bottom:0}
+.order .note{background:#fffbeb;border:1px solid #fde68a;color:#78350f;border-radius:12px;padding:10px 12px;font-size:15px;margin-bottom:10px}
+.order .line{font-size:14px;color:var(--mute);margin:6px 0}
+.order .line b{color:var(--ink)}
+.order.ring{background:#fff;border:2px solid var(--brand);animation:ring 1.2s ease-in-out infinite}
+@keyframes ring{50%{box-shadow:0 0 0 8px rgba(255,59,31,.16)}}
+.countdown{font-size:14px;font-weight:700;color:#92400e;margin-bottom:4px}
+.countdown.soon{color:#991b1b}
+button.notice{width:100%;text-align:left;cursor:pointer;font:inherit;font-size:14px}
+.done-row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}
+.done-row span:last-child{color:var(--mute);white-space:nowrap}
+@media(prefers-reduced-motion:reduce){.order.ring{animation:none}}

@@ -33,11 +33,12 @@ const call = name => async data => {
   if (!r.ok) throw new Error(j.error || 'Algo salió mal. Probá de nuevo.');
   return j.data;
 };
-const api = { getDriverDocs: call('getDriverDocs'), reviewDriver: call('reviewDriver'), cancelOrder: call('cancelOrder'), syncDriver: call('syncDriver') };
+const api = { getDriverDocs: call('getDriverDocs'), reviewDriver: call('reviewDriver'), cancelOrder: call('cancelOrder'), syncDriver: call('syncDriver'),
+  ...Object.fromEntries(['getConfig', 'bizCreateUser', 'bizRemoveUser', 'mpConnectLink', 'mpDisconnect', 'settleDriver'].map(n => [n, call(n)])) };
 
 const ST = { docs_pendientes: ['Sin fotos', 'wait'], en_revision: ['Para revisar', 'wait'], aprobado: ['Aprobado', 'ok'], rechazado: ['Rechazado', 'bad'], suspendido: ['Suspendido', 'bad'] };
 const OS = { pago_pendiente: 'Esperando pago', nuevo: 'Buscando conductor', aceptado: 'Aceptado', en_local: 'En el local', recogido: 'En camino', entregado: 'Entregado', cancelado: 'Cancelado' };
-const state = { tab: 'solicitudes', drivers: {}, padron: {}, orders: {}, docs: {}, editing: null, catalog: {}, biz: null, item: null, towns: {}, town: null };
+const state = { tab: 'solicitudes', drivers: {}, padron: {}, orders: {}, docs: {}, editing: null, catalog: {}, biz: null, item: null, towns: {}, town: null, staff: {}, split: null, mpLink: null, settlements: {} };
 // Pueblos: towns/{id} con name, lat, lon, km y order. Se cargan en la pestaña Pueblos.
 const townName = id => (state.towns[id] && state.towns[id].name) || '—';
 const townOpts = sel => {
@@ -66,13 +67,13 @@ function login() {
 
 function render() {
   const pend = Object.values(state.drivers).filter(d => d.status === 'en_revision').length;
-  const tabs = [['solicitudes', `Solicitudes${pend ? ` (${pend})` : ''}`], ['conductores', 'Conductores'], ['padron', 'Padrón'], ['locales', 'Locales'], ['pueblos', 'Pueblos'], ['pedidos', 'Pedidos']];
+  const tabs = [['solicitudes', `Solicitudes${pend ? ` (${pend})` : ''}`], ['conductores', 'Conductores'], ['padron', 'Padrón'], ['locales', 'Locales'], ['pueblos', 'Pueblos'], ['pedidos', 'Pedidos'], ['liquidaciones', 'Liquidaciones']];
   $('#app').innerHTML = `
   <header class="top"><div class="top-in"><div class="who"><b>Ringcon Go · Admin</b><small>${esc(auth.currentUser.email)}</small></div>
     <button class="icon-btn" data-act="logout" aria-label="Cerrar sesión">⎋</button></div></header>
   <main class="wrap">
     <nav class="tabs" role="tablist">${tabs.map(([k, l]) => `<button class="tab" role="tab" aria-selected="${state.tab === k}" data-act="tab" data-tab="${k}">${l}</button>`).join('')}</nav>
-    <section id="view">${({ solicitudes: vSolicitudes, conductores: vConductores, padron: vPadron, locales: vLocales, pueblos: vPueblos, pedidos: vPedidos })[state.tab]()}</section>
+    <section id="view">${({ solicitudes: vSolicitudes, conductores: vConductores, padron: vPadron, locales: vLocales, pueblos: vPueblos, pedidos: vPedidos, liquidaciones: vLiquidaciones })[state.tab]()}</section>
   </main>`;
 }
 
@@ -247,6 +248,7 @@ function vLocal() {
         ${isNew ? '' : '<button type="button" class="btn ghost" data-act="biz-del">Borrar local</button>'}</div>
     </form>
   </div>
+  ${isNew ? '' : vAccess(b)}
   ${isNew ? '<p class="small mute">Creá el local y después vas a poder cargar sus productos.</p>' : `
   <div class="card">
     <h3 style="margin-bottom:12px">${state.item === 'new' ? 'Nuevo producto' : state.item ? 'Editar producto' : 'Agregar producto'}</h3>
@@ -272,6 +274,52 @@ function vLocal() {
         <button class="btn ghost sm" data-act="item-toggle" data-id="${esc(m.id)}">${m.available === false ? 'Hay stock' : 'Sin stock'}</button>
         <button class="btn ghost sm" data-act="item-del" data-id="${esc(m.id)}">Borrar</button></td></tr>`).join('')}
   </tbody></table></div>` : '<div class="empty">Este local todavía no tiene productos.</div>'}`}`;
+}
+
+// Acceso del local a su panel de pedidos y conexión de su Mercado Pago.
+function vAccess(b) {
+  const id = state.biz, staff = Object.entries(state.staff[id] || {}), panelUrl = new URL('local.html', location.href).href;
+  const link = state.mpLink && state.mpLink.bizId === id ? state.mpLink.url : '';
+  const wa = `Para cobrar con tarjeta en Ringcon Go, abrí este enlace con la cuenta de Mercado Pago de ${b.name} y tocá Autorizar: ${link}`;
+  return `<div class="card">
+    <h3 style="margin-bottom:6px">Panel de pedidos del local</h3>
+    <p class="small mute" style="margin-bottom:12px">Con una cuenta, el local recibe cada pedido con alerta sonora y lo acepta desde <b>${esc(panelUrl)}</b>. Los conductores lo ven recién cuando el local acepta; si no responde en 10 minutos, se cancela solo. Sin cuentas, los pedidos van directo a los conductores.</p>
+    ${staff.map(([uid, email]) => `<div class="kv"><span>${esc(email)}</span><b><button class="btn ghost sm" data-act="staff-del" data-uid="${esc(uid)}">Quitar</button></b></div>`).join('')}
+    <form id="f-staff" style="margin-top:12px">
+      <div class="row2">
+        <label class="field">Email para el local<input id="s-email" type="email" required maxlength="120" autocomplete="off"></label>
+        <label class="field">Contraseña (mínimo 8)<input id="s-pass" required minlength="8" maxlength="64" autocomplete="off"></label>
+      </div>
+      <div class="actions"><button class="btn primary">Crear acceso</button></div>
+    </form>
+  </div>
+  <div class="card">
+    <h3 style="margin-bottom:6px">Cobro con tarjeta (Mercado Pago)</h3>
+    ${state.split === false ? '<p class="small mute">El cobro por local no está activado: faltan MP_CLIENT_ID y MP_CLIENT_SECRET en Vercel. Mientras tanto, la tarjeta la cobra la cuenta de la plataforma.</p>' : `
+    <p class="small mute" style="margin-bottom:12px">El dueño del local autoriza una sola vez con su cuenta de Mercado Pago. Desde ahí cada pago con tarjeta entra a su cuenta y la parte de Ringcon Go (comisión, envío y propina) se acredita sola.</p>
+    <div class="kv"><span>Estado</span><b>${b.mp === true ? '<span class="badge ok">Conectado</span>' : b.mp === false ? '<span class="badge bad">Se desconectó: hay que conectarlo de nuevo</span>' : '<span class="badge wait">Sin conectar: solo efectivo</span>'}</b></div>
+    ${link ? `<label class="field" style="margin-top:12px">Enlace para el dueño del local (sirve 7 días y una sola vez)<input id="mp-link" readonly value="${esc(link)}"></label>
+    <div class="actions"><button class="btn primary" data-act="mp-copy">Copiar enlace</button><a class="btn ghost" style="color:inherit;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(wa)}">Enviar por WhatsApp</a></div>`
+    : `<div class="actions"><button class="btn primary" data-act="mp-link">Generar enlace para ${b.mp == null ? 'conectar' : 'reconectar'}</button>${b.mp == null ? '' : '<button class="btn ghost" data-act="mp-off">Desconectar</button>'}</div>`}`}
+  </div>`;
+}
+
+/* ─────────── liquidaciones de conductores ─────────── */
+const owed = st => st.fromPlatform ?? (st.method === 'tarjeta' ? st.earning || 0 : 0);
+function vLiquidaciones() {
+  const rows = driversWithId().map(d => {
+    const open = Object.values(state.settlements[d.uid] || {}).filter(st => !st.paidAt);
+    const debe = open.reduce((t, st) => t + owed(st), 0), rinde = open.reduce((t, st) => t + (st.toPlatform || 0), 0);
+    return { ...d, n: open.length, debe, rinde, net: debe - rinde };
+  }).filter(r => r.n).sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
+  const intro = '<p class="small mute" style="margin-bottom:12px">Mercado Pago divide cada pago con tarjeta entre el local y Ringcon Go. La parte del conductor (envío y propina) queda acá como saldo a su favor, y se le descuenta la comisión de los pedidos que cobró en efectivo. Transferile el neto y marcá la liquidación.</p>';
+  if (!rows.length) return intro + '<div class="empty"><span class="em">🧾</span>No hay entregas sin liquidar.</div>';
+  return `${intro}<div class="card scroll"><table><thead><tr><th>Conductor</th><th>Entregas</th><th>A su favor (tarjeta)</th><th>Rinde (efectivo)</th><th>Neto</th><th></th></tr></thead><tbody>
+    ${rows.map(r => `<tr><td><b>${esc(r.nombre)} ${esc(r.apellido)}</b><br><span class="mute small">${esc(townName(r.townId))}</span></td>
+      <td>${r.n}</td><td>${money(r.debe)}</td><td>${money(r.rinde)}</td>
+      <td><b>${r.net >= 0 ? `Le transferís ${money(r.net)}` : `Te transfiere ${money(-r.net)}`}</b></td>
+      <td><button class="btn ghost sm" data-act="settle" data-uid="${esc(r.uid)}">Marcar liquidado</button></td></tr>`).join('')}
+  </tbody></table></div>`;
 }
 
 async function saveBiz() {
@@ -328,6 +376,11 @@ document.addEventListener('submit', async e => {
     catch { toast('Guardado en el padrón, pero no se pudo actualizar la cuenta del conductor. Probá guardar de nuevo.', 'err'); }
   }
   if (e.target.id === 'f-town') await saveTown();
+  if (e.target.id === 'f-staff') {
+    const btn = e.target.querySelector('button'); btn.disabled = true;
+    try { await api.bizCreateUser({ bizId: state.biz, email: $('#s-email').value.trim(), password: $('#s-pass').value }); toast('Acceso creado. Pasale el email y la contraseña al local.'); render(); }
+    catch (err) { toast(err.message, 'err'); btn.disabled = false; }
+  }
   if (e.target.id === 'f-biz') await saveBiz();
   if (e.target.id === 'f-item') await saveItem();
 });
@@ -349,6 +402,29 @@ const A = {
     catch (e) { toast(e.message, 'err'); t.disabled = false; }
   },
   edit: t => { state.editing = t.dataset.dni; render(); scrollTo(0, 0); },
+  'staff-del': async t => {
+    if (!confirm('¿Quitar este acceso? Esa cuenta deja de poder entrar al panel del local.')) return;
+    t.disabled = true;
+    try { await api.bizRemoveUser({ bizId: state.biz, uid: t.dataset.uid }); toast('Acceso quitado'); } catch (e) { toast(e.message, 'err'); t.disabled = false; }
+  },
+  'mp-link': async t => {
+    t.disabled = true;
+    try { state.mpLink = { bizId: state.biz, url: (await api.mpConnectLink({ bizId: state.biz })).url }; render(); } catch (e) { toast(e.message, 'err'); t.disabled = false; }
+  },
+  'mp-copy': async () => {
+    const i = $('#mp-link');
+    try { await navigator.clipboard.writeText(i.value); toast('Enlace copiado'); } catch { i.select(); toast('Seleccionado: copialo con Ctrl+C o manteniéndolo apretado'); }
+  },
+  'mp-off': async t => {
+    if (!confirm('¿Desconectar Mercado Pago de este local? Va a quedar solo con efectivo hasta que se conecte de nuevo.')) return;
+    t.disabled = true;
+    try { await api.mpDisconnect({ bizId: state.biz }); state.mpLink = null; toast('Mercado Pago desconectado'); } catch (e) { toast(e.message, 'err'); t.disabled = false; }
+  },
+  settle: async t => {
+    if (!confirm('¿Ya hiciste (o recibiste) la transferencia? Las entregas de este conductor quedan marcadas como liquidadas.')) return;
+    t.disabled = true;
+    try { const r = await api.settleDriver({ uid: t.dataset.uid }); toast(`Liquidado: ${r.count} entrega(s)`); } catch (e) { toast(e.message, 'err'); t.disabled = false; }
+  },
   'town-edit': t => { state.town = t.dataset.id; render(); scrollTo(0, 0); },
   'town-cancel': () => { state.town = null; render(); },
   'town-del': async t => {
@@ -389,7 +465,7 @@ const A = {
 document.addEventListener('click', e => { const t = e.target.closest('[data-act]'); if (!t) return; const f = A[t.dataset.act]; if (f) f(t, e); });
 
 // Re-render sin pisar un formulario a medio completar.
-const refresh = () => { if (document.activeElement && document.activeElement.closest('#f-padron, #f-biz, #f-item, #f-town')) return; render(); };
+const refresh = () => { if (document.activeElement && document.activeElement.closest('#f-padron, #f-biz, #f-item, #f-town, #f-staff')) return; render(); };
 
 onAuthStateChanged(auth, async u => {
   subs.forEach(f => f()); subs = [];
@@ -402,4 +478,7 @@ onAuthStateChanged(auth, async u => {
   subs.push(onValue(ref(db, 'orders'), s => { state.orders = s.val() || {}; if (state.tab === 'pedidos') refresh(); }));
   subs.push(onValue(ref(db, 'catalog'), s => { state.catalog = s.val() || {}; if (state.tab === 'locales') refresh(); }));
   subs.push(onValue(ref(db, 'towns'), s => { state.towns = s.val() || {}; refresh(); }));
+  subs.push(onValue(ref(db, 'bizStaff'), s => { state.staff = s.val() || {}; if (state.tab === 'locales') refresh(); }, () => {}));
+  subs.push(onValue(ref(db, 'settlements'), s => { state.settlements = s.val() || {}; if (state.tab === 'liquidaciones') refresh(); }, () => {}));
+  api.getConfig().then(c => { state.split = !!c.split; if (state.tab === 'locales') refresh(); }).catch(() => {});
 });

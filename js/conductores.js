@@ -50,6 +50,12 @@ const state = {
 };
 // Pedidos publicados para el pueblo del conductor (el tablero tiene los de todos los pueblos).
 const myTownName = () => (state.me && state.towns[state.me.townId] && state.towns[state.me.townId].name) || 'tu pueblo';
+// Lo que marcó el local en su panel.
+const KITCHEN = { aceptado: ['El local aceptó el pedido', 'wait'], preparando: ['🍳 En preparación', 'wait'], listo: ['✅ Listo para retirar', 'ok'] };
+const kitchenBadge = k => KITCHEN[k] ? ` <span class="badge ${KITCHEN[k][1]}">${KITCHEN[k][0]}</span>` : '';
+// Saldo sin liquidar: lo que Ringcon Go le debe (envío y propina de pedidos con tarjeta) menos la comisión que cobró en efectivo.
+const balance = () => Object.values(state.settlements).filter(st => !st.paidAt)
+  .reduce((t, st) => t + (st.fromPlatform ?? (st.method === 'tarjeta' ? st.earning || 0 : 0)) - (st.toPlatform || 0), 0);
 const myOpen = () => Object.values(state.open || {}).filter(o => state.me && o.townId === state.me.townId);
 let subs = [], activeSub = null, openSub = null, beatT = null, wake = null, seenOpen = null;
 const brand = `<div class="brand"><svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#ff3b1f"/><g transform="translate(0 -12)" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"><path d="M200 220v-30a56 56 0 0 1 112 0v30" stroke-width="22"/><path d="M160 214H352L384 396H128Z" fill="#fff" stroke-width="36"/></g></svg><div>Ringcon Go<small>CONDUCTORES</small></div></div>`;
@@ -209,7 +215,7 @@ function todayStats() {
 }
 
 function renderPanel(d) {
-  const expired = !(d.licenciaVence > Date.now()), st = todayStats();
+  const expired = !(d.licenciaVence > Date.now()), st = todayStats(), bal = balance();
   $('#app').innerHTML = `
   <header class="top"><div class="top-in">
     <div class="who"><b>${esc(d.nombre)} ${esc(d.apellido)}</b><small>✓ Identidad verificada</small></div>
@@ -226,6 +232,7 @@ function renderPanel(d) {
       <div class="stat"><small>Ganancia hoy</small><b>${money(st.earning)}</b></div>
       <div class="stat"><small>A rendir hoy</small><b>${money(st.owe)}</b></div>
     </div>
+    ${bal ? `<p class="small mute" id="saldo" style="margin:-8px 0 18px">Saldo sin liquidar: ${bal > 0 ? `Ringcon Go te debe <b>${money(bal)}</b> por envíos y propinas de pedidos con tarjeta.` : `tenés que rendir <b>${money(-bal)}</b> a Ringcon Go.`}</p>` : ''}
     <div id="main">${state.active ? renderActive(state.active) : renderOpen()}</div>
   </main>`;
 }
@@ -239,7 +246,7 @@ function renderOpen() {
   ${list.map(o => {
     const card = o.method === 'tarjeta';
     return `<div class="card">
-      <span class="badge ${card ? 'ok' : 'wait'}">${card ? '💳 Pagado con tarjeta' : `💵 Cobrar ${money(o.total)} en efectivo`}</span>
+      <span class="badge ${card ? 'ok' : 'wait'}">${card ? '💳 Pagado con tarjeta' : `💵 Cobrar ${money(o.total)} en efectivo`}</span>${kitchenBadge(o.kitchen)}
       <h3>${esc(o.business.name)}</h3>
       <div class="kv"><span>Tu ganancia</span><b style="color:var(--ok)">${money(o.driverPay)}</b></div>
       <div class="kv"><span>Destino</span><b>${esc(o.address.text)}</b></div>
@@ -265,6 +272,7 @@ function renderActive(o) {
   <div class="card active">
     <div class="steps">${[1, 2, 3].map(i => `<i class="${i <= STEP_I[o.status] ? 'on' : ''}"></i>`).join('')}</div>
     <h3>${esc(o.business.name)}</h3>
+    ${['aceptado', 'en_local'].includes(o.status) ? kitchenBadge(o.kitchen) : ''}
     ${card
       ? `<div class="notice ok"><span>💳</span><span><b>PAGADO CON TARJETA</b>El cliente ya pagó por Mercado Pago. <u>No le cobres nada</u> en la puerta. El local cobra por la plataforma.</span></div>`
       : `<div class="notice warn"><span>💵</span><span><b>COBRAR EN PUERTA</b><span class="big">${money(t.total)}</span>
